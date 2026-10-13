@@ -1,11 +1,9 @@
 'use client';
 
 import { getShowDetail } from '@/lib/api/show';
-import dayjs from '@/plugins/dayjs';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import { SIDEBAR_PHASE, type SidebarPhase } from '@/constants/shows/details';
+import { useMemo } from 'react';
 import ShowDetailSidebar from './_components/ShowDetailSidebar';
 import ShowDetailMain from './_components/ShowDetailMain';
 import ShowDetailTabs from './_components/ShowDetailTabs';
@@ -14,25 +12,9 @@ export default function ShowDetailPage() {
   const params = useParams();
   const id = Number(params?.id);
 
-  const { data, isFetching } = useQuery(getShowDetail(id));
+  const { data } = useQuery(getShowDetail(id));
 
   const showDetail = useMemo(() => data as ShowCatalog.Detail, [data]);
-
-  const initialPhase = useMemo(() => getInitialSidebarPhase(showDetail), [showDetail]);
-  const [sidebarPhase, setSidebarPhase] = useState<SidebarPhase>(initialPhase);
-
-  const handleOpenTimeReached = () => setSidebarPhase(SIDEBAR_PHASE.AFTER_OPENING);
-
-  useEffect(() => {
-    setSidebarPhase(initialPhase);
-  }, [initialPhase]);
-
-  function getInitialSidebarPhase(show: ShowCatalog.Detail): SidebarPhase {
-    const openAt = show?.salePeriod?.startDate ? dayjs(show.salePeriod.startDate) : null;
-    return openAt?.isValid() && !dayjs().isBefore(openAt)
-      ? SIDEBAR_PHASE.AFTER_OPENING
-      : SIDEBAR_PHASE.BEFORE_OPEN;
-  }
 
   if (!id || id < 0) {
     return (
@@ -42,7 +24,8 @@ export default function ShowDetailPage() {
     );
   }
 
-  if (!showDetail || isFetching) {
+  // 재조회(isFetching) 때 로딩 화면으로 바꾸면 카운트다운이 언마운트됨
+  if (!showDetail) {
     return (
       <div className="container mx-auto flex min-h-[60vh] max-w-7xl items-center justify-center px-5 sm:px-6 lg:px-8">
         <div className="text-muted-foreground">로딩 중...</div>
@@ -58,12 +41,7 @@ export default function ShowDetailPage() {
           <ShowDetailTabs show={showDetail} />
         </div>
 
-        <ShowDetailSidebar
-          phase={sidebarPhase}
-          salePeriod={showDetail.salePeriod}
-          schedules={showDetail.schedules}
-          onOpenTimeReached={handleOpenTimeReached}
-        />
+        <ShowDetailSidebar salePeriod={showDetail.salePeriod} schedules={showDetail.schedules} />
       </div>
     </div>
   );
