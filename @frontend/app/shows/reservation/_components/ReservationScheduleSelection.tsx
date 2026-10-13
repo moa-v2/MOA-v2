@@ -7,6 +7,7 @@ import { enterQueue, getQueueStatus } from '@/lib/api/queue';
 import { getShowDetail } from '@/lib/api/show';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { confirmScheduleSeats } from '@/lib/api/reservation';
+import { getServerNow } from '@/lib/server-clock';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { Loader2 } from 'lucide-react';
@@ -109,7 +110,7 @@ export default function ReservationScheduleSelection({
       scheduleText: string,
       seats: SelectedSeatInfo[],
     ) => {
-      const expiresAt = Date.now() + remainingSeconds * 1000;
+      const expiresAt = getServerNow() + remainingSeconds * 1000;
       const params = new URLSearchParams({
         showId: String(showId),
         scheduleId: String(scheduleId),
