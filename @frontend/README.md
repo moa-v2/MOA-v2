@@ -51,6 +51,24 @@ bun dev
 
 `app/page.tsx` 파일을 수정하면 페이지가 자동으로 업데이트됩니다.
 
+### E2E 테스트 (Playwright)
+
+처음 한 번 테스트용 브라우저를 설치합니다:
+
+```bash
+pnpm exec playwright install chromium
+```
+
+테스트를 실행합니다. 3100 포트에 개발 서버가 없으면 자동으로 띄웁니다(`E2E_PORT`로 변경 가능):
+
+```bash
+pnpm test:e2e
+```
+
+- 백엔드 응답은 테스트 안에서 가짜로 채우므로 백엔드 서버 없이도 돕니다.
+- 실패한 테스트는 `test-results/`에 영상·trace가 남습니다. `pnpm exec playwright show-trace <trace.zip>`으로 열어 볼 수 있습니다.
+- 모든 테스트를 녹화하려면 `E2E_VIDEO=on pnpm test:e2e`로 실행합니다.
+
 ## 기술 스택
 
 - **Framework**: Next.js 16.1.1 (App Router)
