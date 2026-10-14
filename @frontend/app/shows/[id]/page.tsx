@@ -1,48 +1,99 @@
-'use client';
-
+import { BE_URL } from '@/constants/common/url';
 import { getShowDetail } from '@/lib/api/show';
-import { useQuery } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
-import { useMemo } from 'react';
-import ShowDetailSidebar from './_components/ShowDetailSidebar';
-import ShowDetailMain from './_components/ShowDetailMain';
-import ShowDetailTabs from './_components/ShowDetailTabs';
+import { getGenreLabel } from '@/lib/common/labels';
+import {
+  BACKEND_DOWN_HOLD_MS,
+  BACKEND_GATEWAY_ERRORS,
+  BACKEND_READ_TIMEOUT_MS,
+  getDemoResponse,
+} from '@/lib/static-content';
+import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { connection } from 'next/server';
+import { cache } from 'react';
+import ShowDetailView from './_components/ShowDetailView';
 
-export default function ShowDetailPage() {
-  const params = useParams();
-  const id = Number(params?.id);
+type Props = { params: Promise<{ id: string }> };
 
-  const { data } = useQuery(getShowDetail(id));
+// 공연 정보는 자주 바뀌지 않아 백엔드 응답을 1분간 재사용(200 응답만 캐시됨)
+const REVALIDATE_SECONDS = 60;
 
-  const showDetail = useMemo(() => data as ShowCatalog.Detail, [data]);
+// 연결 자체가 안 될 때만 잠시 기다리지 않음(502 같은 응답은 바로 와서 기다릴 일이 없음)
+let backendDownUntil = 0;
 
-  if (!id || id < 0) {
-    return (
-      <div className="text-muted-foreground container mx-auto max-w-7xl px-5 py-10 text-center sm:px-6 lg:px-8">
-        존재하지 않는 공연입니다.
-      </div>
-    );
+const parseId = (value: string) => {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+};
+
+/**
+ * 공연 상세(서버). 없는 공연이면 null
+ * - 백엔드가 응답하지 않으면 API 중계 라우트처럼 데모 데이터
+ * - generateMetadata 와 페이지가 같은 요청 안에서 한 번만 부르도록 cache
+ */
+const fetchShowDetail = cache(async (id: number): Promise<ShowCatalog.Detail | null> => {
+  const path = `v1/shows/${id}`;
+  const demo = () => {
+    const { status, body } = getDemoResponse('GET', path, new URLSearchParams());
+    return status === 200 ? (body.data as ShowCatalog.Detail) : null;
+  };
+  if (Date.now() < backendDownUntil) return demo();
+
+  let response: Response;
+  try {
+    response = await fetch(`${BE_URL}/api/${path}`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+      signal: AbortSignal.timeout(BACKEND_READ_TIMEOUT_MS),
+    });
+  } catch {
+    backendDownUntil = Date.now() + BACKEND_DOWN_HOLD_MS;
+    return demo();
   }
+  if (BACKEND_GATEWAY_ERRORS.has(response.status)) return demo();
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`공연 상세 조회 실패 (${response.status})`);
+  return ((await response.json()) as Api.Response<ShowCatalog.Detail>).data ?? null;
+});
 
-  // 재조회(isFetching) 때 로딩 화면으로 바꾸면 카운트다운이 언마운트됨
-  if (!showDetail) {
-    return (
-      <div className="container mx-auto flex min-h-[60vh] max-w-7xl items-center justify-center px-5 sm:px-6 lg:px-8">
-        <div className="text-muted-foreground">로딩 중...</div>
-      </div>
-    );
-  }
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const id = parseId((await params).id);
+  const show = id ? await fetchShowDetail(id) : null;
+  if (!show) return { title: '존재하지 않는 공연' };
 
+  const description = `${getGenreLabel(show.genre)} · ${show.startDate} ~ ${show.endDate} · ${show.location.venue} ${show.location.hallName}`;
+  return {
+    title: show.title,
+    description,
+    openGraph: {
+      title: show.title,
+      description,
+      images: show.posterUrl ? [{ url: show.posterUrl, alt: show.title }] : undefined,
+    },
+  };
+}
+
+/** 브라우저 캐시에 넘길 공연 상세와 그 시각(사이드바 오픈 단계·카운트다운을 이 시각으로 그림) */
+async function prefetchShowDetail(id: number) {
+  const queryClient = new QueryClient();
+  await queryClient.prefetchQuery({
+    queryKey: getShowDetail(id).queryKey,
+    queryFn: () => fetchShowDetail(id),
+  });
+  return { state: dehydrate(queryClient), renderedAt: Date.now() };
+}
+
+/** 공연 상세: 서버에서 공연 정보를 받아 캐시에 채운 뒤 HTML 로 내려줌(브라우저는 다시 조회하지 않음) */
+export default async function ShowDetailPage({ params }: Props) {
+  // 서버 시각으로 그리므로 요청마다 렌더링(공연 정보는 위 fetch 캐시)
+  await connection();
+  const id = parseId((await params).id);
+  if (!id || !(await fetchShowDetail(id))) notFound();
+
+  const { state, renderedAt } = await prefetchShowDetail(id);
   return (
-    <div className="container mx-auto max-w-7xl py-6 pr-0 pl-5 sm:pl-6 lg:pl-8">
-      <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-        <div className="min-w-0 flex-1 space-y-6">
-          <ShowDetailMain show={showDetail} />
-          <ShowDetailTabs show={showDetail} />
-        </div>
-
-        <ShowDetailSidebar salePeriod={showDetail.salePeriod} schedules={showDetail.schedules} />
-      </div>
-    </div>
+    <HydrationBoundary state={state}>
+      <ShowDetailView id={id} renderedAt={renderedAt} />
+    </HydrationBoundary>
   );
 }

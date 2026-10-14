@@ -3,14 +3,13 @@
 import { Skeleton } from '@/components/atoms';
 import { useAlert } from '@/components/molecules/AlertContext';
 import { PageCard } from '@/components/molecules/PageCard';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { cancelReservation, fetchReservationDetail } from '@/lib/api/reservation';
 import { fetchShowReservationDetail } from '@/lib/api/admin/reservation';
 import dayjs from '@/plugins/dayjs';
 import { DATE_UNIT } from '@/constants/common/dateFormat';
-import { queryClient } from '@/lib/query-client';
 import { MY_PAGE_ROUTES } from '@/constants/route/userRoutes';
 import ReservationBasicInfo from './ReservationBasicInfo';
 import ReservationPaymentInfo from './ReservationPaymentInfo';
@@ -38,6 +37,7 @@ export interface ReservationDetailProps {
 /** 예매 상세 — 조회·취소·목록 이동 */
 export default function ReservationDetail({ id, variant = 'user' }: ReservationDetailProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const reservationId = Number(id) || -1;
   const isAdmin = variant === 'admin';
 
