@@ -2,39 +2,50 @@
 
 import { Button, Skeleton } from '@/components/atoms';
 import { PageCard } from '@/components/molecules/PageCard';
-import { BaseTable, type BaseTableColumn, type BaseTableFilterOption } from '@/components/organisms';
+import { BaseTable, type BaseTableColumn } from '@/components/organisms';
 import { REGION_LABELS } from '@/constants/common';
 import { ADMIN_ROUTES } from '@/constants/route/adminRoutes';
-import { deriveFilterOptions } from '@/lib/admin/table-filter';
+import { labelKeys, labelOptions, toFilterValues } from '@/lib/admin/table-filter';
+import {
+  oneOfParam,
+  pageParam,
+  pageSizeParam,
+  textParam,
+  useTableParams,
+} from '@/lib/admin/table-params';
 import { getSeatMapList } from '@/lib/api/admin/seat';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from '@/plugins/dayjs';
 import { DATE_FORMAT } from '@/constants/common/dateFormat';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { z } from 'zod';
+
+// 주소 쿼리 (예: /admin/seat?region=SEOUL&q=예술의전당)
+const seatListSchema = z.object({
+  page: pageParam,
+  size: pageSizeParam,
+  q: textParam,
+  field: oneOfParam(['venueName', 'hallName']),
+  region: oneOfParam(labelKeys(REGION_LABELS)),
+});
+
+const FILTER_OPTIONS = { region: labelOptions(REGION_LABELS) };
 
 export default function SeatList() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
-  const [keyword, setKeyword] = useState('');
-  const [searchColumn, setSearchColumn] = useState('all');
-  const [initialFilterOptions, setInitialFilterOptions] = useState<
-    Record<string, BaseTableFilterOption[]>
-  >({});
-  const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
+  const { params: query, setParams, isDefault, resetParams } = useTableParams(seatListSchema);
 
   const params: Seat.ListParams = useMemo(
     () => ({
-      page,
-      size: pageSize,
-      ...(keyword.trim() && searchColumn === 'hallName' && { hallName: keyword.trim() }),
-      ...(keyword.trim() &&
-        (searchColumn === 'all' || searchColumn === 'venueName') && { venueName: keyword.trim() }),
-      ...(filterValues.region?.length && { region: filterValues.region[0] }),
+      page: query.page - 1,
+      size: query.size,
+      ...(query.q && query.field === 'hallName' && { hallName: query.q }),
+      ...(query.q && query.field !== 'hallName' && { venueName: query.q }),
+      ...(query.region && { region: query.region }),
     }),
-    [page, pageSize, keyword, searchColumn, filterValues],
+    [query],
   );
 
   const { data, isFetching } = useQuery(getSeatMapList(params));
@@ -45,23 +56,6 @@ export default function SeatList() {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    const hasNoFilter = Object.values(filterValues).every((arr) => !arr?.length);
-    const hasOptions = Object.keys(initialFilterOptions).length > 0;
-
-    if (hasNoFilter && seatList.length > 0 && !hasOptions) {
-      setInitialFilterOptions(
-        deriveFilterOptions<Seat.List>(seatList, [
-          {
-            key: 'region',
-            getValue: (seat) => seat.region,
-            getLabel: (value) => REGION_LABELS[value as keyof typeof REGION_LABELS] ?? value,
-          },
-        ]),
-      );
-    }
-  }, [seatList, filterValues, initialFilterOptions]);
-
   const columns: BaseTableColumn<Seat.List>[] = [
     { key: 'seatMapId', label: '번호' },
     {
@@ -69,7 +63,7 @@ export default function SeatList() {
       label: '지역',
       render: (seat) => REGION_LABELS[seat.region as keyof typeof REGION_LABELS] ?? seat.region,
       filter: true,
-      filterOptions: initialFilterOptions.region,
+      filterOptions: FILTER_OPTIONS.region,
     },
     { key: 'venueName', label: '공연장명', search: true },
     { key: 'hallName', label: '홀명', search: true },
@@ -85,22 +79,6 @@ export default function SeatList() {
     },
   ];
 
-  function handleSearch(searchKeyword: string, column: string) {
-    setKeyword(searchKeyword);
-    setSearchColumn(column);
-    setPage(0);
-  }
-
-  function handleFilter(columnKey: string, selectedValues: string[]) {
-    setFilterValues((prev) => ({ ...prev, [columnKey]: selectedValues }));
-    setPage(0);
-  }
-
-  function handlePageSizeChange(size: number) {
-    setPageSize(size);
-    setPage(0);
-  }
-
   return (
     <PageCard>
       <PageCard.Title useRouteBack={false}>좌석 목록</PageCard.Title>
@@ -113,14 +91,20 @@ export default function SeatList() {
           <BaseTable
             data={seatList}
             columns={columns}
-            onSearch={handleSearch}
-            filterValues={filterValues}
-            onFilter={handleFilter}
-            page={page}
+            searchKeyword={query.q}
+            searchColumn={query.field}
+            onSearch={(keyword, field) =>
+              setParams({ q: keyword.trim(), field: field === 'all' ? undefined : field })
+            }
+            filterValues={toFilterValues({ region: query.region })}
+            onFilter={(key, values) => setParams({ [key]: values[0] })}
+            page={query.page - 1}
+            canReset={!isDefault}
+            onReset={resetParams}
             totalPages={totalPages}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            onPageSizeChange={handlePageSizeChange}
+            pageSize={query.size}
+            onPageChange={(page) => setParams({ page: page + 1 })}
+            onPageSizeChange={(size) => setParams({ size })}
             isLoading={isFetching}
             headerActions={
               <Button onClick={() => router.push(ADMIN_ROUTES.SEAT + '/upsert')} size="sm">

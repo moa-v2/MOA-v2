@@ -36,3 +36,15 @@ export function deriveFilterOptions<T>(
 
   return options;
 }
+
+/** 라벨 상수 → 필터 선택지(상수에 적힌 순서대로) */
+export const labelOptions = (labels: Record<string, string>): BaseTableFilterOption[] =>
+  Object.entries(labels).map(([value, label]) => ({ value, label }));
+
+/** 라벨 상수의 값 목록(주소 검증용) */
+export const labelKeys = <K extends string>(labels: Record<K, string>) =>
+  Object.keys(labels) as [K, ...K[]];
+
+/** 필터 하나만 고르는 값 → BaseTable filterValues 형식 */
+export const toFilterValues = (values: Record<string, string | undefined>) =>
+  Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value ? [value] : []]));
