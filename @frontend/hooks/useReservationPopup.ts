@@ -1,8 +1,8 @@
 'use client';
 
-import { HEADER_ROUTES } from '@/constants/route/userRoutes';
 import { checkAuthLogin } from '@/lib/api/auth/auth';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { loginPathFromHere } from '@/lib/auth/session';
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 
@@ -25,14 +25,14 @@ export function useReservationPopup() {
 
   const runPreprocess = useCallback(async (): Promise<boolean> => {
     if (!user) {
-      router.replace(HEADER_ROUTES.LOGIN);
+      router.replace(loginPathFromHere());
       return false;
     }
 
     // 로그인 상태 확인
     const isLoggedIn = await checkAuthLogin();
     if (!isLoggedIn) {
-      router.replace(HEADER_ROUTES.LOGIN);
+      router.replace(loginPathFromHere());
       return false;
     }
 

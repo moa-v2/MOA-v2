@@ -1,4 +1,6 @@
+import { AUTH_COOKIE_KEYS } from '@/constants/common/auth';
 import { BE_URL } from '@/constants/common/url';
+import { authCookieOptions, refreshAccessToken, withAccessToken } from '@/lib/auth/session';
 import { getDemoResponse } from '@/lib/static-content';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -87,12 +89,28 @@ async function proxyRequest(request: NextRequest, { params }: Props) {
     }
 
     const backendUrl = `${BE_URL}/api/${pathString}${url.search}`;
-    let response: Response;
-    try {
-      response = await fetch(backendUrl, {
+    const callBackend = () =>
+      fetch(backendUrl, {
         ...fetchOptions,
         signal: request.method === 'GET' ? AbortSignal.timeout(READ_TIMEOUT_MS) : undefined,
       });
+    const refreshToken = request.cookies.get(AUTH_COOKIE_KEYS.REFRESH_TOKEN)?.value;
+    let refreshedAccess: { token: string; maxAge: number } | null = null;
+    let sessionRejected = false;
+    let response: Response;
+    try {
+      response = await callBackend();
+      // 한 화면에 오래 머물다 로그인 토큰이 만료된 경우: 재발급 받아 한 번만 다시 요청
+      if (response.status === 401 && refreshToken && !pathString.startsWith('auth/')) {
+        const refreshed = await refreshAccessToken(refreshToken);
+        if (refreshed.status === 'ok') {
+          refreshedAccess = { token: refreshed.accessToken, maxAge: refreshed.maxAge };
+          headers['Cookie'] = withAccessToken(cookie, refreshed.accessToken);
+          response = await callBackend();
+        } else {
+          sessionRejected = refreshed.status === 'invalid';
+        }
+      }
     } catch (error) {
       console.error('Proxy Error:', error);
       backendDownUntil = Date.now() + DOWN_HOLD_MS;
@@ -112,10 +130,22 @@ async function proxyRequest(request: NextRequest, { params }: Props) {
 
     appendSetCookieFromBackend(response.headers, responseHeaders);
 
-    return new NextResponse(data, {
+    const proxied = new NextResponse(data, {
       status: response.status,
       headers: responseHeaders,
     });
+    if (refreshedAccess) {
+      proxied.cookies.set(
+        AUTH_COOKIE_KEYS.ACCESS_TOKEN,
+        refreshedAccess.token,
+        authCookieOptions(refreshedAccess.maxAge),
+      );
+    }
+    if (sessionRejected) {
+      proxied.cookies.delete(AUTH_COOKIE_KEYS.ACCESS_TOKEN);
+      proxied.cookies.delete(AUTH_COOKIE_KEYS.REFRESH_TOKEN);
+    }
+    return proxied;
   } catch (error) {
     console.error('Proxy Error:', error);
     return NextResponse.json({ error: 'Failed to proxy request' }, { status: 500 });

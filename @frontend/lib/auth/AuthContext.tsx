@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { getAuthUser, logout as logoutApi } from '@/lib/api/auth/auth';
 import { queryClient } from '@/lib/query-client';
 import { setGlobalOnUnauthorized, setGlobalRouter } from '@/lib/api-client';
+import { loginPathFromHere } from '@/lib/auth/session';
 import { useAlert } from '@/components/molecules/AlertContext';
 import { UserRole } from '@shared/enums';
 
@@ -40,6 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace('/');
   }, [router]);
 
+  // 로그인이 풀린 채 API 를 부르면(재발급도 실패) 지금 화면으로 돌아오는 로그인 화면으로
+  const redirectToLogin = useCallback(() => {
+    queryClient.removeQueries({ queryKey: ['auth', 'user'] });
+    router.replace(loginPathFromHere());
+  }, [router]);
+
   const logout = useCallback(async () => {
     try {
       await logoutMutation();
@@ -50,11 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setGlobalRouter(router);
-    setGlobalOnUnauthorized(clearSessionAndRedirect);
+    setGlobalOnUnauthorized(redirectToLogin);
     return () => {
       setGlobalOnUnauthorized(null);
     };
-  }, [router, clearSessionAndRedirect]);
+  }, [router, redirectToLogin]);
 
   const value: AuthContextType = {
     user,
