@@ -7,6 +7,7 @@ import dayjs from '@/plugins/dayjs';
 import { useQuery } from '@tanstack/react-query';
 import Autoplay from 'embla-carousel-autoplay';
 import useEmblaCarousel from 'embla-carousel-react';
+import { Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useMemo } from 'react';
@@ -111,7 +112,15 @@ export default function MainHeroBanner() {
       .slice(0, SLIDE_COUNT);
   }, [data]);
 
-  if (isPending) return <div className="h-120 bg-slate-900" />;
+  // 백엔드가 꺼져 있으면 데모 응답으로 넘어가기까지 몇 초 걸림
+  if (isPending) {
+    return (
+      <div className="flex h-120 flex-col items-center justify-center gap-3 bg-slate-900">
+        <Loader2 className="h-7 w-7 animate-spin text-white/60" />
+        <p className="text-sm text-white/60">공연 정보를 불러오는 중입니다.</p>
+      </div>
+    );
+  }
   if (slides.length === 0) return null;
 
   return (
