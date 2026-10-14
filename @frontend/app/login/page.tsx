@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/atoms';
 import { AlertCircleIcon } from 'lucide-react';
+import DemoLoginGuard from './_components/DemoLoginGuard';
 
 const ENV_PARAM = process.env.NODE_ENV === 'production' ? 'prod' : 'local';
 
@@ -111,29 +112,31 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <CardDescription>소셜 계정으로 로그인하거나 회원가입할 수 있습니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3">
-              {SOCIAL_PROVIDERS.map((provider) => (
-                <Button
-                  key={provider.id}
-                  variant="outline"
-                  size="lg"
-                  className={`h-12 min-h-12 w-full py-0 ${provider.bgClass} ${provider.textClass}`}
-                  asChild
-                >
-                  <a
-                    href={`${provider.href}?env=${ENV_PARAM}`}
-                    className="relative flex h-12 min-h-12 w-full items-center justify-start px-4 py-0"
+            <DemoLoginGuard>
+              <div className="grid gap-3">
+                {SOCIAL_PROVIDERS.map((provider) => (
+                  <Button
+                    key={provider.id}
+                    variant="outline"
+                    size="lg"
+                    className={`h-12 min-h-12 w-full py-0 ${provider.bgClass} ${provider.textClass}`}
+                    asChild
                   >
-                    <span className="flex h-5 w-8 shrink-0 items-center justify-center">
-                      {provider.icon}
-                    </span>
-                    <span className="absolute right-0 left-0 flex justify-center text-sm leading-none">
-                      {provider.name}로 계속하기
-                    </span>
-                  </a>
-                </Button>
-              ))}
-            </div>
+                    <a
+                      href={`${provider.href}?env=${ENV_PARAM}`}
+                      className="relative flex h-12 min-h-12 w-full items-center justify-start px-4 py-0"
+                    >
+                      <span className="flex h-5 w-8 shrink-0 items-center justify-center">
+                        {provider.icon}
+                      </span>
+                      <span className="absolute right-0 left-0 flex justify-center text-sm leading-none">
+                        {provider.name}로 계속하기
+                      </span>
+                    </a>
+                  </Button>
+                ))}
+              </div>
+            </DemoLoginGuard>
           </CardContent>
         </Card>
       </div>

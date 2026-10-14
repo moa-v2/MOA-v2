@@ -20,7 +20,10 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec next dev --port ${PORT}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // 연결 안 되는 백엔드 주소로 띄워, 실제 백엔드 상태와 상관없이 항상 데모 데이터로 응답하게 함
+    env: { NEXT_PUBLIC_BACKEND_URL: 'http://127.0.0.1:59999' },
+    // 이미 떠 있는 서버는 실제 백엔드에 붙어 있을 수 있어 재사용하지 않음
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

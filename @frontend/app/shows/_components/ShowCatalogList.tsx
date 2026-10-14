@@ -9,7 +9,6 @@ import { Loader2, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const PAGE_SIZE = 20;
-const USE_MOCK_DATA = false;
 const DEFAULT_SORT: SortLabel = '인기순';
 
 const SORT_OPTIONS = [
@@ -19,107 +18,6 @@ const SORT_OPTIONS = [
 ];
 
 type SortLabel = (typeof SORT_OPTIONS)[number]['label'];
-
-const MOCK_POSTERS = [
-  'https://ticketimage.interpark.com/Play/image/large/26/26001820_p.gif',
-  'https://ticketimage.interpark.com/Play/image/large/25/25005738_p.gif',
-  'https://ticketimage.interpark.com/Play/image/large/25/25005103_p.gif',
-  'https://ticketimage.interpark.com/Play/image/large/25/25006370_p.gif',
-  'https://ticketimage.interpark.com/Play/image/large/25/25006774_p.gif',
-];
-
-const toComparableDate = (value: string) => new Date(value.replaceAll('.', '-')).getTime();
-
-const createMockShows = (count: number): ShowCatalog.List[] => {
-  const genres = GENRE_OPTIONS.map((option) => option.value);
-  const regions = REGION_OPTIONS.map((option) => option.value);
-
-  return Array.from({ length: count }, (_, index) => {
-    const start = new Date(2025, 0, 1 + index * 2);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 45);
-
-    const startDate = start.toISOString().slice(0, 10);
-    const endDate = end.toISOString().slice(0, 10);
-
-    return {
-      id: index + 1,
-      title: `목업 공연 ${index + 1}`,
-      genre: genres[index % genres.length],
-      status: 'ONGOING',
-      saleStatus: 'ON_SALE',
-      posterUrl: MOCK_POSTERS[index % MOCK_POSTERS.length] ?? '',
-      location: {
-        region: regions[index % regions.length],
-        venue: `목업 공연장 ${index % 12}`,
-        hallName: `${(index % 4) + 1}관`,
-      },
-      salePeriod: { startDate, endDate },
-      createdAt: new Date(2026, 0, 1 + index).toISOString(),
-      viewCount: 5000 - index * 15,
-      startDate,
-      endDate,
-      schedules: [],
-    };
-  });
-};
-
-const getMockShowCatalogPage = async (
-  params: ShowCatalog.ListParams,
-  source: ShowCatalog.List[],
-): Promise<Api.ListResponse<ShowCatalog.List>> => {
-  const page = params.page ?? 0;
-  const size = params.size ?? PAGE_SIZE;
-  const keyword = params.keyword?.trim().toLowerCase() ?? '';
-
-  const filtered = source
-    .filter((show) => (params.genre ? show.genre === params.genre : true))
-    .filter((show) => (params.region ? show.location.region === params.region : true))
-    .filter((show) => {
-      if (!keyword) return true;
-      const searchable = `${show.title} ${show.location.venue} ${show.location.hallName}`.toLowerCase();
-      return searchable.includes(keyword);
-    })
-    .filter((show) => {
-      const showStart = toComparableDate(show.startDate);
-      const showEnd = toComparableDate(show.endDate);
-      const filterStart = params.startDate ? toComparableDate(params.startDate) : null;
-      const filterEnd = params.endDate ? toComparableDate(params.endDate) : null;
-      if (filterStart && showEnd < filterStart) return false;
-      if (filterEnd && showStart > filterEnd) return false;
-      return true;
-    });
-
-  const sorted = [...filtered].sort((a, b) => {
-    const direction = params.orderDirection === 'asc' ? 1 : -1;
-    switch (params.orderBy) {
-      case 'startDate':
-        return (toComparableDate(a.startDate) - toComparableDate(b.startDate)) * direction;
-      case 'createdAt':
-        return (toComparableDate(a.createdAt) - toComparableDate(b.createdAt)) * direction;
-      case 'viewCount':
-      default:
-        return (a.viewCount - b.viewCount) * direction;
-    }
-  });
-
-  const totalElements = sorted.length;
-  const totalPages = Math.ceil(totalElements / size);
-  const startIndex = page * size;
-  const content = sorted.slice(startIndex, startIndex + size);
-
-  await new Promise((resolve) => setTimeout(resolve, 250));
-
-  return {
-    content,
-    page,
-    size,
-    totalElements,
-    totalPages,
-    first: page === 0,
-    last: page + 1 >= totalPages,
-  };
-};
 
 const getTodayDateString = () => {
   const today = new Date();
@@ -136,7 +34,6 @@ export default function ShowCatalogList() {
   const [endDate, setEndDate] = useState('');
   const [selectedSort, setSelectedSort] = useState<SortLabel>(DEFAULT_SORT);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const mockShows = useMemo(() => createMockShows(120), []);
   const todayDate = useMemo(() => getTodayDateString(), []);
 
   const sortConfig = useMemo(
@@ -166,11 +63,7 @@ export default function ShowCatalogList() {
         page: pageParam,
         size: PAGE_SIZE,
       };
-      const apiResponse = await fetchShowCatalogList(requestParams).catch(() => undefined);
-      if (USE_MOCK_DATA) {
-        return getMockShowCatalogPage(requestParams, mockShows);
-      }
-      return apiResponse;
+      return fetchShowCatalogList(requestParams).catch(() => undefined);
     },
     getNextPageParam: (lastPage) => {
       if (!lastPage || lastPage.last) {

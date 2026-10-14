@@ -1,7 +1,23 @@
 import { BE_URL } from '@/constants/common/url';
+import { getDemoResponse } from '@/lib/static-content';
 import { NextRequest, NextResponse } from 'next/server';
 
 type Props = { params: Promise<{ path: string[] }> };
+
+// 조회는 이 시간 안에 응답이 없으면 백엔드가 꺼진 것으로 봄(저장 요청은 오래 걸릴 수 있어 그대로 기다림)
+const READ_TIMEOUT_MS = 5_000;
+// 한 번 실패하면 이 시간 동안은 백엔드를 다시 기다리지 않고 바로 데모로 응답
+const DOWN_HOLD_MS = 3 * 60_000;
+// 앞단(Nginx 등)은 살아 있고 앱 서버만 꺼진 경우
+const GATEWAY_ERRORS = new Set([502, 503, 504]);
+
+let backendDownUntil = 0;
+
+/** 백엔드 대신 데모 데이터(공연 조회) 또는 이용 불가(그 외)로 응답 */
+function respondWithDemo(method: string, path: string, searchParams: URLSearchParams) {
+  const { status, body } = getDemoResponse(method, path, searchParams);
+  return NextResponse.json(body, { status, headers: { 'x-demo-data': '1' } });
+}
 
 /** API Set-Cookie 모두 전달 (로그아웃 등)
  *  getSetCookie 없으면 단일 헤더만 */
@@ -24,6 +40,10 @@ async function proxyRequest(request: NextRequest, { params }: Props) {
     const { path } = await params;
     const pathString = path.join('/');
     const url = new URL(request.url);
+
+    if (Date.now() < backendDownUntil) {
+      return respondWithDemo(request.method, pathString, url.searchParams);
+    }
 
     const contentType = request.headers.get('content-type') ?? 'application/json';
     const headers: Record<string, string> = {
@@ -67,7 +87,21 @@ async function proxyRequest(request: NextRequest, { params }: Props) {
     }
 
     const backendUrl = `${BE_URL}/api/${pathString}${url.search}`;
-    const response = await fetch(backendUrl, fetchOptions);
+    let response: Response;
+    try {
+      response = await fetch(backendUrl, {
+        ...fetchOptions,
+        signal: request.method === 'GET' ? AbortSignal.timeout(READ_TIMEOUT_MS) : undefined,
+      });
+    } catch (error) {
+      console.error('Proxy Error:', error);
+      backendDownUntil = Date.now() + DOWN_HOLD_MS;
+      return respondWithDemo(request.method, pathString, url.searchParams);
+    }
+    if (GATEWAY_ERRORS.has(response.status)) {
+      backendDownUntil = Date.now() + DOWN_HOLD_MS;
+      return respondWithDemo(request.method, pathString, url.searchParams);
+    }
     const data = await response.text();
 
     const responseHeaders = new Headers();
