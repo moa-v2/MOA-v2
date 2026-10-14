@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuCheckboxItem,
@@ -18,7 +19,7 @@ import { SearchBar, SearchColumn } from '@/components/molecules/SearchBar';
 import { Pagination } from '@/components/molecules/Pagination';
 import type { BaseTableFilterOption } from '@/lib/admin/table-filter';
 import { cn } from '@/lib/utils';
-import { ArrowDown, ArrowUp, ChevronsUpDown, ListFilter, FunnelX } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronsUpDown, ListFilter, FunnelX, RotateCcw } from 'lucide-react';
 
 export type { BaseTableFilterOption };
 
@@ -41,14 +42,16 @@ export interface BaseTableProps<T> {
   data: T[];
   columns: BaseTableColumn<T>[];
 
-  // 검색 기능
+  // 검색 기능 (적용된 검색어·검색 열은 밖에서 받음, 입력 중인 글자만 표 안에 둠)
   showSearch?: boolean;
   searchPlaceholder?: string;
+  searchKeyword?: string;
+  searchColumn?: string;
   onSearch?: (keyword: string, searchColumn: string) => void;
 
-  // 정렬 기능
-  defaultSortColumn?: string;
-  defaultSortOrder?: 'asc' | 'desc';
+  // 정렬 기능 (현재 정렬은 밖에서 받음)
+  sortColumn?: string;
+  sortOrder?: 'asc' | 'desc';
   onSort?: (column?: string, order?: 'asc' | 'desc') => void;
 
   // 필터 기능 (컬럼별 선택값)
@@ -62,6 +65,10 @@ export interface BaseTableProps<T> {
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
   pageSizeOptions?: number[];
+
+  // 조건 초기화 (canReset 일 때만 버튼이 보임)
+  canReset?: boolean;
+  onReset?: () => void;
 
   // 헤더 액션 영역 (우측 버튼 영역)
   headerActions?: React.ReactNode;
@@ -79,9 +86,11 @@ export function BaseTable<T extends Record<string, any>>({
   columns,
   showSearch = true,
   searchPlaceholder = '검색어를 입력하세요',
+  searchKeyword = '',
+  searchColumn = 'all',
   onSearch,
-  defaultSortColumn,
-  defaultSortOrder,
+  sortColumn,
+  sortOrder,
   onSort,
   filterValues,
   onFilter,
@@ -91,28 +100,17 @@ export function BaseTable<T extends Record<string, any>>({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = [5, 10, 20, 50],
+  canReset = false,
+  onReset,
   headerActions,
   isLoading = false,
   className,
   emptyMessage = '데이터가 없습니다.',
 }: BaseTableProps<T>) {
-  const [sortColumn, setSortColumn] = React.useState<string | undefined>(defaultSortColumn);
-  const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc' | undefined>(defaultSortOrder);
-
-  const [searchKeyword, setSearchKeyword] = React.useState('');
-  const [selectedSearchColumn, setSelectedSearchColumn] = React.useState('all');
-
   // columns에서 search: true만 필터링
   const searchColumns: SearchColumn[] = React.useMemo(() => {
     return columns.filter((col) => col.search).map((col) => ({ key: col.key, label: col.label }));
   }, [columns]);
-
-  // 검색 처리
-  function handleSearch() {
-    if (onSearch) {
-      onSearch(searchKeyword, selectedSearchColumn);
-    }
-  }
 
   // 정렬 처리
   function handleSort(key: string) {
@@ -133,10 +131,6 @@ export function BaseTable<T extends Record<string, any>>({
       newSortOrder = 'asc';
     }
 
-    setSortColumn(newSortColumn);
-    setSortOrder(newSortOrder);
-
-    // 부모에게 정렬 변경 알림
     onSort?.(newSortColumn, newSortOrder);
   }
 
@@ -226,20 +220,32 @@ export function BaseTable<T extends Record<string, any>>({
     <div className={cn('w-full space-y-4', className)}>
       {/* 상단 컨트롤 영역 */}
       <div className="flex items-center justify-between gap-4">
-        {/* 좌측: 검색 영역 */}
-        {showSearch ? (
-          <SearchBar
-            searchColumns={searchColumns}
-            placeholder={searchPlaceholder}
-            value={searchKeyword}
-            selectedColumn={selectedSearchColumn}
-            onValueChange={setSearchKeyword}
-            onColumnChange={setSelectedSearchColumn}
-            onSearch={handleSearch}
-          />
-        ) : (
-          <div />
-        )}
+        {/* 좌측: 검색 영역 + 초기화 */}
+        <div className="flex items-center gap-2">
+          {showSearch && (
+            // 적용된 검색 조건이 바뀌면(뒤로 가기 등) 입력 중이던 값을 버리고 새로 맞춤
+            <TableSearch
+              key={`${searchColumn}:${searchKeyword}`}
+              searchColumns={searchColumns}
+              placeholder={searchPlaceholder}
+              keyword={searchKeyword}
+              column={searchColumn}
+              onSearch={onSearch}
+            />
+          )}
+          {canReset && onReset && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={onReset}
+            >
+              <RotateCcw className="size-4" />
+              초기화
+            </Button>
+          )}
+        </div>
 
         {/* 우측: 헤더 액션 영역 */}
         {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
@@ -316,3 +322,32 @@ export function BaseTable<T extends Record<string, any>>({
   );
 }
 
+/** 검색창: 입력 중인 글자·고른 열은 여기만 두고, 검색할 때 밖으로 알림 */
+function TableSearch({
+  searchColumns,
+  placeholder,
+  keyword,
+  column,
+  onSearch,
+}: {
+  searchColumns: SearchColumn[];
+  placeholder: string;
+  keyword: string;
+  column: string;
+  onSearch?: (keyword: string, searchColumn: string) => void;
+}) {
+  const [draftKeyword, setDraftKeyword] = React.useState(keyword);
+  const [draftColumn, setDraftColumn] = React.useState(column);
+
+  return (
+    <SearchBar
+      searchColumns={searchColumns}
+      placeholder={placeholder}
+      value={draftKeyword}
+      selectedColumn={draftColumn}
+      onValueChange={setDraftKeyword}
+      onColumnChange={setDraftColumn}
+      onSearch={() => onSearch?.(draftKeyword, draftColumn)}
+    />
+  );
+}

@@ -6,12 +6,9 @@ import { changeSaleStatus, deleteShow, getShowList } from '@/lib/api/admin/show'
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
+import { z } from 'zod';
 import { PageCard } from '@/components/molecules/PageCard';
-import {
-  BaseTable,
-  type BaseTableColumn,
-  type BaseTableFilterOption,
-} from '@/components/organisms';
+import { BaseTable, type BaseTableColumn } from '@/components/organisms';
 import { ADMIN_ROUTES } from '@/constants/route/adminRoutes';
 import StatusBadge from '@/components/molecules/StatusBadge';
 import { GENRE_LABELS, SALE_STATUS_LABELS, SHOW_STATUS_LABELS } from '@/constants/common';
@@ -19,8 +16,35 @@ import dayjs from '@/plugins/dayjs';
 import { DATE_FORMAT } from '@/constants/common/dateFormat';
 import Link from 'next/link';
 import { ToggleDropdown, ToggleItem } from '@/components/molecules/ToggleDropdown';
-import { Genre, SaleStatus, ShowStatus } from '@shared/enums';
-import { deriveFilterOptions } from '@/lib/admin/table-filter';
+import { labelKeys, labelOptions, toFilterValues } from '@/lib/admin/table-filter';
+import {
+  oneOfParam,
+  pageParam,
+  pageSizeParam,
+  parseSort,
+  sortParam,
+  textParam,
+  toSortParam,
+  useTableParams,
+} from '@/lib/admin/table-params';
+
+// 주소 쿼리 (예: /admin/shows?page=2&genre=MUSICAL&sort=title.asc)
+const showListSchema = z.object({
+  page: pageParam,
+  size: pageSizeParam,
+  sort: sortParam(['id', 'title', 'schedule', 'salePeriod']),
+  q: textParam,
+  field: oneOfParam(['title']),
+  status: oneOfParam(labelKeys(SHOW_STATUS_LABELS)),
+  saleStatus: oneOfParam(labelKeys(SALE_STATUS_LABELS)),
+  genre: oneOfParam(labelKeys(GENRE_LABELS)),
+});
+
+const FILTER_OPTIONS = {
+  status: labelOptions(SHOW_STATUS_LABELS),
+  saleStatus: labelOptions(SALE_STATUS_LABELS),
+  genre: labelOptions(GENRE_LABELS),
+};
 
 export default function ShowList() {
   const router = useRouter();
@@ -28,38 +52,21 @@ export default function ShowList() {
 
   const [mounted, setMounted] = useState(false);
 
-  // 페이지네이션
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const { params: query, setParams, isDefault, resetParams } = useTableParams(showListSchema);
+  const sort = parseSort(query.sort);
 
-  // 정렬
-  const [sortColumn, setSortColumn] = useState<string | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | undefined>(undefined);
-
-  // 검색
-  const [keyword, setKeyword] = useState('');
-
-  // 필터
-  const [initialFilterOptions, setInitialFilterOptions] = useState<
-    Record<string, BaseTableFilterOption[]>
-  >({});
-  const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
-
-  // query params
-  const params: Show.ListParams = useMemo(
-    () => ({
-      page,
-      size: pageSize,
-      ...(sortColumn && sortOrder && { sort: `${sortColumn}, ${sortOrder}` }),
-      ...(keyword.trim() && { keyword: keyword.trim() }),
-      ...(filterValues.status?.length && { showStatus: filterValues.status[0] as ShowStatus }),
-      ...(filterValues.saleStatus?.length && {
-        saleStatus: filterValues.saleStatus[0] as SaleStatus,
-      }),
-      ...(filterValues.genre?.length && { genre: filterValues.genre[0] as Genre }),
-    }),
-    [page, pageSize, sortColumn, sortOrder, keyword, filterValues],
-  );
+  const params: Show.ListParams = useMemo(() => {
+    const { column, order } = parseSort(query.sort);
+    return {
+      page: query.page - 1,
+      size: query.size,
+      ...(column && { sort: `${column},${order}` }),
+      ...(query.q && { keyword: query.q }),
+      ...(query.status && { showStatus: query.status }),
+      ...(query.saleStatus && { saleStatus: query.saleStatus }),
+      ...(query.genre && { genre: query.genre }),
+    };
+  }, [query]);
 
   const { data, isFetching, refetch } = useQuery(getShowList(params));
   const { mutateAsync: onDeleteShow, isPending: isDeletePending } = useMutation(deleteShow());
@@ -74,35 +81,6 @@ export default function ShowList() {
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // 필터 옵션 목록
-  useEffect(() => {
-    // 최초 전체 리스트 기준으로 한 번만 계산
-    const hasNoFilter = Object.values(filterValues).every((arr) => !arr?.length);
-    const hasOptions = Object.keys(initialFilterOptions).length > 0;
-
-    if (hasNoFilter && showList.length > 0 && !hasOptions) {
-      setInitialFilterOptions(
-        deriveFilterOptions<Show.List>(showList, [
-          {
-            key: 'status',
-            getValue: (s) => s.status,
-            getLabel: (v) => SHOW_STATUS_LABELS[v as ShowStatus],
-          },
-          {
-            key: 'saleStatus',
-            getValue: (s) => s.saleStatus,
-            getLabel: (v) => SALE_STATUS_LABELS[v as SaleStatus],
-          },
-          {
-            key: 'genre',
-            getValue: (s) => s.genre,
-            getLabel: (v) => GENRE_LABELS[v as Genre],
-          },
-        ]),
-      );
-    }
-  }, [showList, filterValues, initialFilterOptions]);
 
   // 컬럼 정의
   const columns: BaseTableColumn<Show.List>[] = [
@@ -126,21 +104,21 @@ export default function ShowList() {
       label: '상태',
       render: (show) => <StatusBadge type="show" status={show.status} />,
       filter: true,
-      filterOptions: initialFilterOptions.status,
+      filterOptions: FILTER_OPTIONS.status,
     },
     {
       key: 'saleStatus',
       label: '판매허용',
       render: (show) => <StatusBadge type="sale" status={show.saleStatus} />,
       filter: true,
-      filterOptions: initialFilterOptions.saleStatus,
+      filterOptions: FILTER_OPTIONS.saleStatus,
     },
     {
       key: 'genre',
       label: '장르',
       render: (show) => GENRE_LABELS[show.genre],
       filter: true,
-      filterOptions: initialFilterOptions.genre,
+      filterOptions: FILTER_OPTIONS.genre,
     },
     {
       key: 'schedule',
@@ -241,30 +219,6 @@ export default function ShowList() {
     }
   }
 
-  // 검색 핸들러 (ListParams 수정시 useQuery 자동 재요청)
-  function handleSearch(searchKeyword: string) {
-    setKeyword(searchKeyword);
-    setPage(0);
-  }
-
-  // 정렬 핸들러
-  const handleSortChange = (changedColumn?: string, changedOrder?: 'asc' | 'desc') => {
-    setSortColumn(changedColumn);
-    setSortOrder(changedOrder);
-  };
-
-  // 필터 핸들러
-  function handleFilter(columnKey: string, selectedValues: string[]) {
-    setFilterValues((prev) => ({ ...prev, [columnKey]: selectedValues }));
-    setPage(0);
-  }
-
-  // 페이지 사이즈 변경 핸들러
-  function handlePageSizeChange(size: number) {
-    setPageSize(size);
-    setPage(0); // 페이지 사이즈 변경 시 첫 페이지로 이동
-  }
-
   return (
     <PageCard>
       <PageCard.Title useRouteBack={false}>공연 목록</PageCard.Title>
@@ -278,17 +232,27 @@ export default function ShowList() {
           <BaseTable
             data={showList}
             columns={columns}
-            onSearch={handleSearch}
-            filterValues={filterValues}
-            onFilter={handleFilter}
-            page={page}
-            defaultSortColumn={sortColumn}
-            defaultSortOrder={sortOrder}
-            onSort={handleSortChange}
+            searchKeyword={query.q}
+            searchColumn={query.field}
+            onSearch={(keyword, field) =>
+              setParams({ q: keyword.trim(), field: field === 'all' ? undefined : field })
+            }
+            filterValues={toFilterValues({
+              status: query.status,
+              saleStatus: query.saleStatus,
+              genre: query.genre,
+            })}
+            onFilter={(key, values) => setParams({ [key]: values[0] })}
+            page={query.page - 1}
+            canReset={!isDefault}
+            onReset={resetParams}
+            sortColumn={sort.column}
+            sortOrder={sort.order}
+            onSort={(column, order) => setParams({ sort: toSortParam(column, order) })}
             totalPages={totalPages}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            onPageSizeChange={handlePageSizeChange}
+            pageSize={query.size}
+            onPageChange={(page) => setParams({ page: page + 1 })}
+            onPageSizeChange={(size) => setParams({ size })}
             headerActions={
               <Button onClick={() => router.push(ADMIN_ROUTES.SHOW_UPSERT)} size="sm">
                 공연 등록
