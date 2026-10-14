@@ -16,7 +16,7 @@ interface Props {
 }
 
 export default function ShowDetailMain({ show }: Props) {
-  const { title, genre, posterUrl, location, salePeriod, runningTime, cast, status } = show;
+  const { title, genre, posterUrl, location, startDate, endDate, runningTime, cast, status } = show;
   const pathname = usePathname();
   const [shareUrl, setShareUrl] = useState('');
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
@@ -86,14 +86,14 @@ export default function ShowDetailMain({ show }: Props) {
         { label: '공연장', value: location.hallName },
         {
           label: '공연기간',
-          value: `${dayjs(salePeriod.startDate).format(DATE_FORMAT.DATE_ONLY)} - ${dayjs(salePeriod.endDate).format(DATE_FORMAT.DATE_ONLY)}`,
+          value: `${dayjs(startDate).format(DATE_FORMAT.DATE_ONLY)} - ${dayjs(endDate).format(DATE_FORMAT.DATE_ONLY)}`,
         },
         { label: '관람시간', value: runningTime },
         { label: '출연진', value: cast },
       ].filter(
         (row): row is { label: string; value: string } => row.value != null && row.value !== '',
       ),
-    [genre, location, salePeriod, runningTime, cast],
+    [genre, location, startDate, endDate, runningTime, cast],
   );
 
   return (
@@ -113,7 +113,16 @@ export default function ShowDetailMain({ show }: Props) {
         <div className="min-w-0 space-y-3">
           <div className="bg-muted relative aspect-3/4 w-full overflow-hidden rounded-lg">
             {posterUrl ? (
-              <Image src={posterUrl} alt={title} fill className="object-cover" sizes="380px" />
+              // 화면에서 가장 큰 요소(LCP)라 지연 로딩하지 않고 먼저 받음
+              <Image
+                src={posterUrl}
+                alt={title}
+                fill
+                preload
+                fetchPriority="high"
+                className="object-cover"
+                sizes="380px"
+              />
             ) : (
               <div className="text-muted-foreground flex h-full items-center justify-center">
                 포스터 없음

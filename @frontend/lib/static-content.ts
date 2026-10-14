@@ -2,9 +2,17 @@ import { getRegionLabel } from '@/lib/common/labels';
 
 /**
  * 손으로 관리하는 화면 데이터
- * - 데모 공연: 백엔드에 연결할 수 없을 때 API 중계 라우트(app/api/[...path])가 대신 내려줌(메인 배너·목록·상세에 그대로 나옴).
+ * - 데모 공연: 백엔드에 연결할 수 없을 때 API 중계 라우트(app/api/[...path])와 공연 상세 서버 렌더링이 대신 내려줌(메인 배너·목록·상세에 그대로 나옴).
  *   날짜는 요청 시점 기준으로 계산해 기간 지난 공연이 나오지 않음. 조회 외 요청(로그인·예매 등)은 이용 불가(503)
  */
+
+// 백엔드 대신 데모로 응답하는 기준(API 중계 라우트·공연 상세 서버 렌더링 공용)
+// 조회는 이 시간 안에 응답이 없으면 백엔드가 꺼진 것으로 봄(저장 요청은 오래 걸릴 수 있어 그대로 기다림)
+export const BACKEND_READ_TIMEOUT_MS = 5_000;
+// 한 번 실패하면 이 시간 동안은 백엔드를 다시 기다리지 않고 바로 데모로 응답
+export const BACKEND_DOWN_HOLD_MS = 3 * 60_000;
+// 앞단(Nginx 등)은 살아 있고 앱 서버만 꺼진 경우
+export const BACKEND_GATEWAY_ERRORS = new Set([502, 503, 504]);
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;

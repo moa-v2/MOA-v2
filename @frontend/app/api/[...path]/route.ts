@@ -1,17 +1,15 @@
 import { AUTH_COOKIE_KEYS } from '@/constants/common/auth';
 import { BE_URL } from '@/constants/common/url';
 import { authCookieOptions, refreshAccessToken, withAccessToken } from '@/lib/auth/session';
-import { getDemoResponse } from '@/lib/static-content';
+import {
+  BACKEND_DOWN_HOLD_MS,
+  BACKEND_GATEWAY_ERRORS,
+  BACKEND_READ_TIMEOUT_MS,
+  getDemoResponse,
+} from '@/lib/static-content';
 import { NextRequest, NextResponse } from 'next/server';
 
 type Props = { params: Promise<{ path: string[] }> };
-
-// 조회는 이 시간 안에 응답이 없으면 백엔드가 꺼진 것으로 봄(저장 요청은 오래 걸릴 수 있어 그대로 기다림)
-const READ_TIMEOUT_MS = 5_000;
-// 한 번 실패하면 이 시간 동안은 백엔드를 다시 기다리지 않고 바로 데모로 응답
-const DOWN_HOLD_MS = 3 * 60_000;
-// 앞단(Nginx 등)은 살아 있고 앱 서버만 꺼진 경우
-const GATEWAY_ERRORS = new Set([502, 503, 504]);
 
 let backendDownUntil = 0;
 
@@ -92,7 +90,7 @@ async function proxyRequest(request: NextRequest, { params }: Props) {
     const callBackend = () =>
       fetch(backendUrl, {
         ...fetchOptions,
-        signal: request.method === 'GET' ? AbortSignal.timeout(READ_TIMEOUT_MS) : undefined,
+        signal: request.method === 'GET' ? AbortSignal.timeout(BACKEND_READ_TIMEOUT_MS) : undefined,
       });
     const refreshToken = request.cookies.get(AUTH_COOKIE_KEYS.REFRESH_TOKEN)?.value;
     let refreshedAccess: { token: string; maxAge: number } | null = null;
@@ -113,11 +111,11 @@ async function proxyRequest(request: NextRequest, { params }: Props) {
       }
     } catch (error) {
       console.error('Proxy Error:', error);
-      backendDownUntil = Date.now() + DOWN_HOLD_MS;
+      backendDownUntil = Date.now() + BACKEND_DOWN_HOLD_MS;
       return respondWithDemo(request.method, pathString, url.searchParams);
     }
-    if (GATEWAY_ERRORS.has(response.status)) {
-      backendDownUntil = Date.now() + DOWN_HOLD_MS;
+    if (BACKEND_GATEWAY_ERRORS.has(response.status)) {
+      backendDownUntil = Date.now() + BACKEND_DOWN_HOLD_MS;
       return respondWithDemo(request.method, pathString, url.searchParams);
     }
     const data = await response.text();

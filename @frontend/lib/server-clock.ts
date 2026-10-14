@@ -2,7 +2,15 @@
 
 import { axiosInstance } from '@/lib/api-client';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { useCallback, useRef, useSyncExternalStore } from 'react';
+import {
+  createContext,
+  createElement,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 
 /** 서버 시각 - 기기 시각(ms)이 들어 있는 구간 */
 interface OffsetBounds {
@@ -10,7 +18,8 @@ interface OffsetBounds {
   hi: number;
 }
 
-type ClockStatus = 'syncing' | 'synced' | 'fallback';
+// seeded: 서버가 화면을 그린 시각으로 임시로 맞춘 상태(첫 표본이 오면 교체)
+type ClockStatus = 'syncing' | 'seeded' | 'synced' | 'fallback';
 
 const SERVER_TIME_URL = '/api/server-time';
 const SAMPLES_PER_SYNC = 3;
@@ -246,36 +255,69 @@ function getServerClockSnapshot() {
   return snapshot;
 }
 
-type Selector<T> = (serverNowMs: number) => T;
+/**
+ * 서버 렌더 시각으로 첫 동기화 전 시계를 임시로 맞춤
+ * - 응답·하이드레이션에 걸린 만큼 늦게 가므로(오픈을 일찍 열지 않는 쪽) 첫 표본이 오면 통째로 바꿈
+ */
+function seedServerClock(serverNowMs: number) {
+  if (status !== 'syncing') return;
+  bounds = { lo: serverNowMs - Date.now(), hi: serverNowMs - Date.now() };
+  pendingReset = true;
+  status = 'seeded';
+}
 
-const getServerRenderSnapshot = () => null;
+const ServerRenderTimeContext = createContext<number | null>(null);
+
+/**
+ * 서버가 화면을 그린 시각을 아래 useServerClock 에 넘김
+ * - 서버 렌더와 하이드레이션이 같은 시각으로 계산돼 오픈 단계·카운트다운이 처음부터 맞게 나옴
+ * - 브라우저 시계가 아직 동기화 전이면 이 시각으로 임시로 맞춰, 하이드레이션 직후 빈 값으로 돌아가지 않게 함
+ */
+export function ServerRenderTimeProvider({
+  renderedAt,
+  children,
+}: {
+  renderedAt: number;
+  children: ReactNode;
+}) {
+  if (typeof window !== 'undefined') seedServerClock(renderedAt);
+  return createElement(ServerRenderTimeContext.Provider, { value: renderedAt }, children);
+}
+
+type Selector<T> = (serverNowMs: number) => T;
 
 /**
  * 전역 서버 시계 구독
  * - selector 결과가 isEqual 로 같으면 리렌더하지 않음
- * - 서버 렌더·첫 동기화 전에는 null
+ * - 서버 렌더·하이드레이션 때는 ServerRenderTimeProvider 의 시각, 없으면 null
+ * - 첫 동기화 전에는 null(ServerRenderTimeProvider 안이면 서버 렌더 시각 기준 임시 값)
  */
 export function useServerClock<T>(
   selector: Selector<T>,
   isEqual: (a: T, b: T) => boolean = Object.is,
 ): T | null {
+  const renderedAt = useContext(ServerRenderTimeContext);
   const cacheRef = useRef<{ serverNowMs: number; selector: Selector<T>; value: T } | null>(null);
 
   // getSnapshot 은 매번 같은 값을 돌려줘야 무한 렌더가 나지 않음
-  const getSelection = useCallback(() => {
-    const serverNowMs = getServerClockSnapshot();
-    if (serverNowMs === null) return null;
+  const selectAt = useCallback(
+    (serverNowMs: number | null) => {
+      if (serverNowMs === null) return null;
 
-    const cached = cacheRef.current;
-    if (cached && cached.serverNowMs === serverNowMs && cached.selector === selector) {
-      return cached.value;
-    }
+      const cached = cacheRef.current;
+      if (cached && cached.serverNowMs === serverNowMs && cached.selector === selector) {
+        return cached.value;
+      }
 
-    const next = selector(serverNowMs);
-    const value = cached && isEqual(cached.value, next) ? cached.value : next;
-    cacheRef.current = { serverNowMs, selector, value };
-    return value;
-  }, [selector, isEqual]);
+      const next = selector(serverNowMs);
+      const value = cached && isEqual(cached.value, next) ? cached.value : next;
+      cacheRef.current = { serverNowMs, selector, value };
+      return value;
+    },
+    [selector, isEqual],
+  );
+  const getSelection = useCallback(() => selectAt(getServerClockSnapshot()), [selectAt]);
+  const getServerSelection = useCallback(() => selectAt(renderedAt), [selectAt, renderedAt]);
 
-  return useSyncExternalStore(subscribeServerClock, getSelection, getServerRenderSnapshot);
+  return useSyncExternalStore(subscribeServerClock, getSelection, getServerSelection);
 }

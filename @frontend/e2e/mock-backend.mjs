@@ -1,4 +1,4 @@
-// E2E 용 가짜 백엔드: 로그인 토큰 교환·재발급만 흉내 내고, 나머지는 502(→ 중계 라우트가 데모 데이터로 응답)
+// E2E 용 가짜 백엔드: 로그인 토큰 교환·재발급과 테스트가 등록한 공연 상세만 응답하고, 나머지는 502(→ 데모 데이터로 응답)
 import { createServer } from 'node:http';
 
 const PORT = Number(process.env.MOCK_BACKEND_PORT ?? 59999);
@@ -42,7 +42,19 @@ const readBody = async (req) => {
   }
 };
 
+// 테스트가 등록한 공연 상세(서버 렌더링이 받아 감). 등록 안 된 공연은 502 → 데모 데이터
+const shows = new Map();
+
 createServer(async (req, res) => {
+  const showPath = /^\/(?:__e2e|api\/v1)\/shows\/(\d+)$/.exec(req.url);
+  if (req.method === 'PUT' && req.url.startsWith('/__e2e/') && showPath) {
+    shows.set(showPath[1], await readBody(req));
+    res.writeHead(204);
+    return res.end();
+  }
+  if (req.method === 'GET' && showPath && shows.has(showPath[1])) {
+    return send(res, 200, { success: true, data: shows.get(showPath[1]), message: null });
+  }
   if (req.method === 'POST' && req.url === '/api/auth/exchange-code') {
     const role = ROLE_BY_CODE[(await readBody(req)).code];
     return role

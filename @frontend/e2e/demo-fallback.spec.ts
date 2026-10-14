@@ -23,19 +23,22 @@ test.describe('백엔드에 연결할 수 없을 때', () => {
   });
 
   test('판매 중 공연은 회차 선택, 오픈 예정 공연은 카운트다운이 나온다', async ({ page }) => {
+    // 개발 서버는 스트리밍한 조각이 숨은 사본으로 남을 때가 있어 보이는 사이드바(complementary)만 찾음
     await page.goto('/shows/1');
-    await expect(page.locator('aside').getByText('관람일')).toBeVisible();
-    await expect(page.locator('aside').getByText(/R석 \d+/)).toBeVisible();
+    await expect(page.getByRole('complementary').getByText('관람일')).toBeVisible();
+    await expect(page.getByRole('complementary').getByText(/R석 \d+/)).toBeVisible();
 
     await page.goto('/shows/2');
     await expect(
-      page.locator('aside').getByRole('button', { name: /^남은 시간 \d{2}:\d{2}:\d{2}$/ }),
+      page
+        .getByRole('complementary')
+        .getByRole('button', { name: /^남은 시간 \d{2}:\d{2}:\d{2}$/ }),
     ).toBeVisible();
   });
 
   test('예매하기를 누르면 로그인 화면에서 이용 불가 안내가 나온다', async ({ page }) => {
     await page.goto('/shows/1');
-    await page.locator('aside').getByRole('button', { name: '예매하기' }).click();
+    await page.getByRole('complementary').getByRole('button', { name: '예매하기' }).click();
 
     await expect(page).toHaveURL(/\/login/);
     await expect(page.getByText('지금은 로그인할 수 없습니다')).toBeVisible();
