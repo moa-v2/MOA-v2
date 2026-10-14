@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth, useConfirmLogout } from '@/lib/auth/AuthContext';
 import { Button } from '@/components/atoms/button';
 import {
@@ -10,6 +11,7 @@ import {
   USER_ROUTES_LABELS,
 } from '@/constants/route/userRoutes';
 import { ADMIN_ROUTES } from '@/constants/route/adminRoutes';
+import { loginPath } from '@/lib/auth/session';
 
 // 네비게이션 메뉴 설정
 const NAV_ITEMS = [
@@ -53,6 +55,7 @@ interface HeaderProps {
 export function Header({ hidden = false }: HeaderProps) {
   const { isLoggedIn, isLoading, user } = useAuth();
   const handleLogout = useConfirmLogout();
+  const pathname = usePathname();
 
   if (hidden) {
     return null;
@@ -129,7 +132,12 @@ export function Header({ hidden = false }: HeaderProps) {
                         size="sm"
                         className="text-muted-foreground hover:text-foreground h-auto px-2 py-1 text-xs font-normal"
                       >
-                        <Link href={item.href}>{item.label}</Link>
+                        {/* 로그인하면 지금 보던 화면으로 돌아옴 */}
+                        <Link
+                          href={item.href === HEADER_ROUTES.LOGIN ? loginPath(pathname) : item.href}
+                        >
+                          {item.label}
+                        </Link>
                       </Button>
                     )}
                     {index <

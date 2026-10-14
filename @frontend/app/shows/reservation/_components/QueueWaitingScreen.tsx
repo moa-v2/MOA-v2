@@ -1,9 +1,9 @@
 'use client';
 
-import { HEADER_ROUTES } from '@/constants/route/userRoutes';
 import { enterQueue, getQueueStatus } from '@/lib/api/queue';
 import { getShowDetail } from '@/lib/api/show';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { loginPathFromHere } from '@/lib/auth/session';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -72,7 +72,7 @@ export default function QueueWaitingScreen({
         return;
       }
       if (!user?.providerId) {
-        router.replace(HEADER_ROUTES.LOGIN);
+        router.replace(loginPathFromHere());
         return;
       }
 
@@ -107,7 +107,7 @@ export default function QueueWaitingScreen({
   useEffect(() => {
     if (isLoading) return;
     if (!user) {
-      router.replace(HEADER_ROUTES.LOGIN);
+      router.replace(loginPathFromHere());
       return;
     }
     void handleEnterQueue();

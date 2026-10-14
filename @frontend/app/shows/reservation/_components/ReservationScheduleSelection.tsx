@@ -6,6 +6,7 @@ import { HEADER_ROUTES, USER_ROUTES } from '@/constants/route/userRoutes';
 import { enterQueue, getQueueStatus } from '@/lib/api/queue';
 import { getShowDetail } from '@/lib/api/show';
 import { useAuth } from '@/lib/auth/AuthContext';
+import { loginPathFromHere } from '@/lib/auth/session';
 import { confirmScheduleSeats } from '@/lib/api/reservation';
 import { getServerNow } from '@/lib/server-clock';
 import { useQuery } from '@tanstack/react-query';
@@ -185,7 +186,7 @@ export default function ReservationScheduleSelection({
   useEffect(() => {
     if (isAuthLoading) return;
     if (!user) {
-      router.replace(HEADER_ROUTES.LOGIN);
+      router.replace(loginPathFromHere());
     }
   }, [isAuthLoading, router, user]);
 

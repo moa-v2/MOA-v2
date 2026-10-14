@@ -1,5 +1,6 @@
 import Image from 'next/image';
-import { BE_URL } from '@/constants/common/url';
+import { cookies } from 'next/headers';
+import { AUTH_COOKIE_KEYS } from '@/constants/common/auth';
 import {
   Alert,
   AlertDescription,
@@ -13,14 +14,12 @@ import {
 } from '@/components/atoms';
 import { AlertCircleIcon } from 'lucide-react';
 import DemoLoginGuard from './_components/DemoLoginGuard';
-
-const ENV_PARAM = process.env.NODE_ENV === 'production' ? 'prod' : 'local';
+import { RETURN_TO_PARAM } from '@/lib/auth/session';
 
 const SOCIAL_PROVIDERS = [
   {
     id: 'google',
     name: '구글',
-    href: `${BE_URL}/oauth2/authorization/google`,
     bgClass: 'bg-white border border-input hover:bg-muted',
     textClass: 'text-foreground',
     icon: (
@@ -47,7 +46,6 @@ const SOCIAL_PROVIDERS = [
   {
     id: 'naver',
     name: '네이버',
-    href: `${BE_URL}/oauth2/authorization/naver`,
     bgClass: 'bg-[#03C75A] hover:bg-[#02b350]',
     textClass: 'text-white',
     icon: (
@@ -64,7 +62,6 @@ const SOCIAL_PROVIDERS = [
   {
     id: 'kakao',
     name: '카카오',
-    href: `${BE_URL}/oauth2/authorization/kakao`,
     bgClass: 'bg-[#FEE500] hover:bg-[#f5dc00]',
     textClass: 'text-[#191919]',
     icon: (
@@ -80,7 +77,11 @@ const SOCIAL_PROVIDERS = [
 ] as const;
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string; message?: string | string[] }>;
+  searchParams: Promise<{
+    error?: string;
+    message?: string | string[];
+    returnTo?: string | string[];
+  }>;
 };
 
 const AUTH_CALLBACK_MESSAGES: Record<string, string> = {
@@ -94,6 +95,18 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const messageKey =
     rawMessage == null ? null : Array.isArray(rawMessage) ? rawMessage[0] : rawMessage;
   const errorMessage = messageKey ? (AUTH_CALLBACK_MESSAGES[messageKey] ?? messageKey) : null;
+  // 로그인에 실패해 돌아왔으면(백엔드는 돌아갈 주소를 모름) 보관해 둔 주소를 이어 씀
+  const returnTo =
+    [params?.returnTo].flat()[0] ??
+    (params?.error || messageKey
+      ? (await cookies()).get(AUTH_COOKIE_KEYS.RETURN_TO)?.value
+      : undefined);
+  // 로그인 시작 라우트가 돌아갈 주소를 쿠키에 보관한 뒤 백엔드 소셜 로그인으로 보냄
+  const loginStartHref = (provider: string) => {
+    const query = new URLSearchParams({ provider });
+    if (returnTo) query.set(RETURN_TO_PARAM, returnTo);
+    return `/api/auth/login?${query}`;
+  };
 
   return (
     <div className="bg-muted/30 flex h-[calc(100vh-3.75rem)] flex-col items-center justify-center px-4 py-12">
@@ -123,7 +136,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     asChild
                   >
                     <a
-                      href={`${provider.href}?env=${ENV_PARAM}`}
+                      href={loginStartHref(provider.id)}
                       className="relative flex h-12 min-h-12 w-full items-center justify-start px-4 py-0"
                     >
                       <span className="flex h-5 w-8 shrink-0 items-center justify-center">

@@ -105,6 +105,8 @@ test.describe('티켓 오픈 카운트다운', () => {
 
   test('결제 카운트다운은 마감 시각 기준으로 줄어든다', async ({ page, context }) => {
     await mockShow(context, toKst(Date.now() + DAY));
+    // 결제 화면은 서버(proxy.ts)가 로그인을 확인하므로 가짜 백엔드로 로그인해 둠
+    await page.request.get('/api/auth/callback?code=code-user', { maxRedirects: 0 });
     await page.goto(
       `/shows/reservation/payment?remainingSeconds=65&expiresAt=${Date.now() + 65_000}`,
     );

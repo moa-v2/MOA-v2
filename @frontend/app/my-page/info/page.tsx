@@ -8,6 +8,7 @@ import { useMutation } from '@tanstack/react-query';
 import { deleteUser } from '@/lib/api/auth/auth';
 import { useAlert } from '@/components/molecules/AlertContext';
 import { ROLE_LABELS } from '@/constants/common/role';
+import { Loader2 } from 'lucide-react';
 
 const PROVIDER_LABELS: Record<string, string> = {
   google: '구글',
@@ -16,7 +17,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 } as const;
 
 export default function MyPage() {
-  const { user, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const { confirm } = useAlert();
 
   const { mutateAsync: onDeleteUser } = useMutation(deleteUser());
@@ -44,7 +45,13 @@ export default function MyPage() {
     await logout();
   }
 
-  if (!user) return null;
+  if (!user) {
+    return isLoading ? (
+      <div className="flex justify-center py-20">
+        <Loader2 className="text-muted-foreground h-7 w-7 animate-spin" />
+      </div>
+    ) : null;
+  }
 
   return (
     <section>

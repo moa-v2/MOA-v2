@@ -1,34 +1,7 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
-import { useAuth } from '@/lib/auth/AuthContext';
 import { MyPageSideBar } from '@/components/organisms/MyPageSideBar';
-import { HEADER_ROUTES } from '@/constants/route/userRoutes';
 
+// 로그인 확인은 proxy.ts 가 화면을 내려주기 전에 함
 export default function MyPageLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const { isLoggedIn, isLoading } = useAuth();
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isLoggedIn) {
-      router.replace(HEADER_ROUTES.LOGIN);
-    }
-  }, [isLoggedIn, isLoading, router]);
-
-  if (isLoading || !isLoggedIn) {
-    return (
-      <div className="bg-muted/30 flex min-h-screen w-full items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-          <span className="text-muted-foreground text-sm">로딩 중...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8">
