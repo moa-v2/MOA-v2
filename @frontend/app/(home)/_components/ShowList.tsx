@@ -15,86 +15,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-const USE_MOCK_DATA = false;
-
-const MOCK_SHOWS: ShowCatalog.List[] = [
-  {
-    id: 1,
-    title: '뮤지컬 데스노트',
-    genre: 'MUSICAL',
-    status: 'ONGOING',
-    saleStatus: 'ON_SALE',
-    posterUrl: 'https://ticketimage.interpark.com/Play/image/large/26/26001820_p.gif',
-    location: { region: 'SEOUL', venue: '디큐브 링크아트센터', hallName: '' },
-    salePeriod: { startDate: '2025.5.10', endDate: '2026.5.10' },
-    createdAt: '2026-02-21T00:00:00',
-    viewCount: 12000,
-    startDate: '2025.5.10',
-    endDate: '2026.5.10',
-    schedules: [],
-  },
-  {
-    id: 2,
-    title: '태양의서커스 <쿠자>',
-    genre: 'MUSICAL',
-    status: 'ONGOING',
-    saleStatus: 'ON_SALE',
-    posterUrl: 'https://ticketimage.interpark.com/Play/image/large/25/25005738_p.gif',
-    location: { region: 'SEOUL', venue: '잠실종합운동장', hallName: '빅탑' },
-    salePeriod: { startDate: '2025.10.11', endDate: '2025.12.28' },
-    createdAt: '2026-02-21T00:00:00',
-    viewCount: 11000,
-    startDate: '2025.10.11',
-    endDate: '2025.12.28',
-    schedules: [],
-  },
-  {
-    id: 3,
-    title: '뮤지컬 <물랑루즈!>',
-    genre: 'MUSICAL',
-    status: 'ONGOING',
-    saleStatus: 'ON_SALE',
-    posterUrl: 'https://ticketimage.interpark.com/Play/image/large/25/25005103_p.gif',
-    location: { region: 'SEOUL', venue: '블루스퀘어', hallName: '신한카드홀' },
-    salePeriod: { startDate: '2025.11.27', endDate: '2026.2.22' },
-    createdAt: '2026-02-21T00:00:00',
-    viewCount: 10800,
-    startDate: '2025.11.27',
-    endDate: '2026.2.22',
-    schedules: [],
-  },
-  {
-    id: 4,
-    title: '<라이프 오브 파이> 한국 초연',
-    genre: 'THEATER',
-    status: 'ONGOING',
-    saleStatus: 'ON_SALE',
-    posterUrl: 'https://ticketimage.interpark.com/Play/image/large/25/25006370_p.gif',
-    location: { region: 'SEOUL', venue: 'GS아트센터', hallName: '' },
-    salePeriod: { startDate: '2025.11.29', endDate: '2026.3.2' },
-    createdAt: '2026-02-21T00:00:00',
-    viewCount: 9600,
-    startDate: '2025.11.29',
-    endDate: '2026.3.2',
-    schedules: [],
-  },
-  {
-    id: 5,
-    title: '뮤지컬 <EVITA>',
-    genre: 'MUSICAL',
-    status: 'ONGOING',
-    saleStatus: 'ON_SALE',
-    posterUrl: 'https://ticketimage.interpark.com/Play/image/large/25/25006774_p.gif',
-    location: { region: 'SEOUL', venue: '광림아트센터', hallName: 'BBCH홀' },
-    salePeriod: { startDate: '2025.11.7', endDate: '2026.1.11' },
-    createdAt: '2026-02-21T00:00:00',
-    viewCount: 9400,
-    startDate: '2025.11.7',
-    endDate: '2026.1.11',
-    schedules: [],
-  },
-];
-
 interface ShowListProps {
   showRank?: boolean;
 }
@@ -117,12 +37,8 @@ export default function ShowList({ showRank = false }: ShowListProps) {
 
   const { data, isFetching } = useQuery(getShowCatalogList(params));
   const shows = data?.content ?? [];
-  const sourceShows = USE_MOCK_DATA ? MOCK_SHOWS : shows;
-  const loading = !USE_MOCK_DATA && isFetching;
   const displayedShows =
-    selectedGenre === 'ALL'
-      ? sourceShows
-      : sourceShows.filter((show) => show.genre === selectedGenre);
+    selectedGenre === 'ALL' ? shows : shows.filter((show) => show.genre === selectedGenre);
 
   return (
     <div className="space-y-6">
@@ -148,7 +64,7 @@ export default function ShowList({ showRank = false }: ShowListProps) {
         ))}
       </div>
 
-      {loading ? (
+      {isFetching ? (
         <div
           className={`${CONTENT_MIN_HEIGHT_CLASS} flex flex-col items-center justify-center gap-3 rounded-lg border bg-white`}
         >

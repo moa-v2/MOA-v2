@@ -3,7 +3,8 @@
 // 프로덕션 환경: Next.js API Routes를 통해 호출 (백엔드 API 노출 방지)
 
 import type { AlertOptions } from '@/components/molecules/AlertContext';
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
+import { createStore } from 'zustand/vanilla';
 
 type RouterLike = {
   back: () => void;
@@ -41,9 +42,22 @@ const getSafeErrorPayload = (error: unknown) => {
   return responseData ?? (error as { message?: string })?.message ?? 'Unknown error';
 };
 
+// 중계 라우트가 백엔드 대신 데모 데이터로 응답 중인지(x-demo-data 헤더)
+export const demoModeStore = createStore(() => ({ active: false }));
+
+const syncDemoMode = (response?: AxiosResponse) => {
+  if (!response) return;
+  const active = response.headers['x-demo-data'] === '1';
+  if (demoModeStore.getState().active !== active) demoModeStore.setState({ active });
+};
+
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    syncDemoMode(response);
+    return response;
+  },
   async (error) => {
+    syncDemoMode(error?.response);
     const method = (error as { config?: { method?: string } })?.config?.method?.toUpperCase() ?? 'UNKNOWN';
     const url = (error as { config?: { url?: string } })?.config?.url ?? 'UNKNOWN_URL';
     const status = (error as { response?: { status?: number } })?.response?.status ?? 'NO_STATUS';

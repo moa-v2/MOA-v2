@@ -1,7 +1,7 @@
 'use client';
 
 import ShowList from './(home)/_components/ShowList';
-import MainBanner from '@/components/organisms/MainBanner';
+import MainHeroBanner from '@/components/organisms/MainHeroBanner';
 
 // 메인 홈
 export default function Home() {
@@ -9,7 +9,7 @@ export default function Home() {
     <div className="min-h-screen">
       {/* Banner Section */}
       <section>
-        <MainBanner />
+        <MainHeroBanner />
       </section>
 
       {/* Main Content */}
