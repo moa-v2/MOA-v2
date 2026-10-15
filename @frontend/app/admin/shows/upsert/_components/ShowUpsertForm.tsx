@@ -161,15 +161,16 @@ export default function ShowUpsertForm(props: Props) {
   const [detailFiles, setDetailFiles] = useState<File[]>([]);
   const [deletedScheduleIds, setDeletedScheduleIds] = useState<number[]>([]);
   const [deletedDetailImageIds, setDeletedDetailImageIds] = useState<number[]>([]);
+  // 불러온 장소·공연장(수정 화면은 서버 값, 등록 화면은 임시저장). 좌석 목록이 온 뒤 한 번 채움
+  const [pendingLocation, setPendingLocation] = useState<Pick<
+    ShowFormData,
+    'region' | 'venueName' | 'hallName'
+  > | null>(null);
 
   // 임시저장(등록 화면만, 관리자 계정별)
   const draftKey = !isUpdate && user?.email ? `show-create:${user.email}` : null;
   const [draftReady, setDraftReady] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
-  const [draftLocation, setDraftLocation] = useState<Pick<
-    ShowFormData,
-    'region' | 'venueName' | 'hallName'
-  > | null>(null);
   const draftAskedRef = useRef(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -206,6 +207,7 @@ export default function ShowUpsertForm(props: Props) {
     setError,
     clearErrors,
     reset,
+    resetField,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<ShowFormData>({
     resolver: zodResolver(showFormSchema),
@@ -280,15 +282,6 @@ export default function ShowUpsertForm(props: Props) {
     }
   }, [hallOptions, watchedHallName, setValue]);
 
-  // 수정 모드: fetch 이후 장소/공연장 데이터 다시 설정
-  useEffect(() => {
-    if (!isUpdate || !data || isSeatMapFetching) return;
-    if (watchedRegion !== data.region) return;
-
-    setValue(SHOW_FORM_FIELDS.VENUE_NAME, data.venueName, { shouldValidate: true });
-    setValue(SHOW_FORM_FIELDS.HALL_NAME, data.hallName, { shouldValidate: true });
-  }, [isUpdate, data, isSeatMapFetching, hallOptions, watchedRegion, setValue]);
-
   // 리액트 하이드레이션 무한 루프 방지용 마운트 플래그
   useEffect(() => {
     setMounted(true);
@@ -328,8 +321,16 @@ export default function ShowUpsertForm(props: Props) {
         keepDirty: false,
         keepErrors: false,
       });
+      // 장소·공연장은 선택지가 나온 뒤 아래 effect 가 채움(바뀐 입력으로 치지 않도록 shouldDirty 없이 비움)
+      setValue(SHOW_FORM_FIELDS.VENUE_NAME, '');
+      setValue(SHOW_FORM_FIELDS.HALL_NAME, '');
+      setPendingLocation({
+        region: data.region,
+        venueName: data.venueName,
+        hallName: data.hallName,
+      });
     });
-  }, [isUpdate, data, reset]);
+  }, [isUpdate, data, reset, setValue]);
 
   // 등록 화면에 들어오면 임시저장을 불러올지 한 번 물어봄
   useEffect(() => {
@@ -353,7 +354,7 @@ export default function ShowUpsertForm(props: Props) {
         // 장소·공연장은 선택지가 나온 뒤에 아래 effect 가 채움
         reset({ ...draft.values, venueName: '', hallName: '' }, { keepDefaultValues: true });
         const { region, venueName, hallName } = draft.values;
-        setDraftLocation({ region, venueName, hallName });
+        setPendingLocation({ region, venueName, hallName });
         setDraftSavedAt(draft.savedAt);
       } else {
         removeDraft(draftKey);
@@ -362,31 +363,31 @@ export default function ShowUpsertForm(props: Props) {
     });
   }, [mounted, draftKey, confirm, reset]);
 
-  // 불러온 지역의 좌석 목록이 온 뒤에 장소 → 공연장 순서로 채움
+  // 불러온 지역의 좌석 목록이 온 뒤에 장소 → 공연장 순서로 한 번 채우고 끝냄(이후 사용자가 바꾼 값은 그대로 둠)
   // 선택 상자는 선택지와 값이 같은 순간에 들어오면 값을 버리므로, 선택지가 나온 다음 렌더에서 넣음
   useEffect(() => {
-    if (!draftLocation || isSeatMapFetching || watchedRegion !== draftLocation.region) return;
-    const { venueName, hallName } = draftLocation;
+    if (!pendingLocation || isSeatMapFetching || watchedRegion !== pendingLocation.region) return;
+    const { venueName, hallName } = pendingLocation;
     // 그사이 없어진 장소·공연장이면 비워 둔 채 끝냄
     if (!venueOptions.some((option) => option.value === venueName)) {
-      setDraftLocation(null);
+      setPendingLocation(null);
       return;
     }
     if (watchedVenueName !== venueName) {
-      setValue(SHOW_FORM_FIELDS.VENUE_NAME, venueName, { shouldDirty: true });
+      setValue(SHOW_FORM_FIELDS.VENUE_NAME, venueName, { shouldDirty: true, shouldValidate: true });
       return;
     }
     if (!hallOptions.some((option) => option.value === hallName)) {
-      setDraftLocation(null);
+      setPendingLocation(null);
       return;
     }
     if (watchedHallName !== hallName) {
-      setValue(SHOW_FORM_FIELDS.HALL_NAME, hallName, { shouldDirty: true });
+      setValue(SHOW_FORM_FIELDS.HALL_NAME, hallName, { shouldDirty: true, shouldValidate: true });
       return;
     }
-    setDraftLocation(null);
+    setPendingLocation(null);
   }, [
-    draftLocation,
+    pendingLocation,
     isSeatMapFetching,
     watchedRegion,
     watchedVenueName,
@@ -399,7 +400,7 @@ export default function ShowUpsertForm(props: Props) {
   // 입력을 멈추고 잠시 뒤 자동 임시저장. 빈 폼으로 돌아가면 지움
   const formValues = useWatch({ control });
   useEffect(() => {
-    if (!draftKey || !draftReady || draftLocation || submitted) return;
+    if (!draftKey || !draftReady || pendingLocation || submitted) return;
     const timer = setTimeout(() => {
       if (isDirty) {
         setDraftSavedAt(saveDraft(draftKey, formValues));
@@ -409,7 +410,7 @@ export default function ShowUpsertForm(props: Props) {
       }
     }, DRAFT_SAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [draftKey, draftReady, draftLocation, submitted, formValues, isDirty]);
+  }, [draftKey, draftReady, pendingLocation, submitted, formValues, isDirty]);
 
   function handleSaveDraft() {
     if (draftKey) setDraftSavedAt(saveDraft(draftKey, getValues()));
@@ -501,13 +502,14 @@ export default function ShowUpsertForm(props: Props) {
   }, [startDate, firstShowDateTimeStr, setError, clearErrors]);
 
   // 3. 일정 공연일이 변경될 때 endDate 설정 (마지막 공연의 2시간 전)
+  // 일정에서 계산하는 값이라 바뀐 입력으로 치지 않도록 기본값도 함께 바꿈(수정 화면을 열기만 해도 이탈 경고가 뜨지 않게)
   useEffect(() => {
     const dateTimes = (schedules ?? [])
       .filter((s) => s.showDate && dayjs(s.showDate).isValid())
       .map((s) => (s.showTime ? dayjs(`${s.showDate}T${s.showTime}`) : dayjs(s.showDate)));
 
     if (dateTimes.length === 0) {
-      setValue(SHOW_FORM_FIELDS.END_DATE, '');
+      resetField(SHOW_FORM_FIELDS.END_DATE, { defaultValue: '' });
       return;
     }
 
@@ -516,8 +518,10 @@ export default function ShowUpsertForm(props: Props) {
     );
     const endMoment = lastShowDateTime.subtract(2, DATE_UNIT.HOUR);
 
-    setValue(SHOW_FORM_FIELDS.END_DATE, endMoment.format(DATE_FORMAT.FULL_TIMEZONE));
-  }, [schedules, setValue]);
+    resetField(SHOW_FORM_FIELDS.END_DATE, {
+      defaultValue: endMoment.format(DATE_FORMAT.FULL_TIMEZONE),
+    });
+  }, [schedules, resetField]);
 
   // 메인 포스터 파일 변경 핸들러
   function handlePosterChange(files: File[]) {
