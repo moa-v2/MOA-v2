@@ -14,30 +14,33 @@ interface NavigationLike extends EventTarget {
 }
 
 /**
- * 저장하지 않은 입력이 있을 때(enabled) 페이지를 떠나기 전에 확인
+ * 저장하지 않은 입력이 있을 때(enabled) 페이지를 떠나기 전에 확인(warning 은 빨간 주의 문구)
  * - 새로고침·탭 닫기·주소 직접 입력: beforeunload (문구는 브라우저 기본)
  * - 앱 안 링크(사이드바 등): Next 의 Link 보다 먼저 클릭을 가로채 확인 후 이동
  * - 브라우저 뒤로·앞으로: Navigation API 로 취소 후 확인 (지원하는 브라우저만)
  * - 버튼으로 하는 이동(router.back 등)은 confirmLeave 로 감쌈
  */
-export function useLeaveGuard(enabled: boolean, message: string) {
+export function useLeaveGuard(enabled: boolean, message: string, warning?: string) {
   const { confirm } = useAlert();
   const router = useRouter();
   const enabledRef = useRef(enabled);
   const messageRef = useRef(message);
+  const warningRef = useRef(warning);
   // 확인을 마치고 떠나는 중이면 다시 묻지 않음
   const leavingRef = useRef(false);
 
   useEffect(() => {
     enabledRef.current = enabled;
     messageRef.current = message;
-  }, [enabled, message]);
+    warningRef.current = warning;
+  }, [enabled, message, warning]);
 
   const ask = useCallback(
     () =>
       confirm({
         title: '페이지 나가기',
         description: messageRef.current,
+        warning: warningRef.current,
         confirmText: '나가기',
         cancelText: '머무르기',
       }),

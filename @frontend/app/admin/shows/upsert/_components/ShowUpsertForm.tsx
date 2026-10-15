@@ -38,6 +38,7 @@ type ActionType = '입력' | '선택';
 // 등록 화면 임시저장: 3일 지나면 묻지 않고 지우고, 입력을 멈추고 1초 뒤 자동 저장
 const DRAFT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 const DRAFT_SAVE_DELAY_MS = 1000;
+const DRAFT_IMAGE_WARNING = '첨부한 이미지는 저장되지 않습니다.';
 
 // 공연 일정 중에서 첫 번째 공연 시각(날짜+시간)을 찾는 함수
 function getFirstShowDateTime(schedules?: Show.Schedules[]) {
@@ -341,8 +342,9 @@ export default function ShowUpsertForm(props: Props) {
       return;
     }
     void confirm({
-      title: '임시저장된 공연',
-      description: `${dayjs(draft.savedAt).format('M월 D일 HH:mm')}에 작성하던 공연이 있습니다. 이어서 작성할까요? 첨부한 이미지는 다시 첨부해야 합니다.`,
+      title: '임시 저장',
+      description: `${dayjs(draft.savedAt).format('M월 D일 HH:mm')}에 작성하던 공연이 있습니다. 이어서 작성할까요?`,
+      warning: DRAFT_IMAGE_WARNING,
       confirmText: '이어서 작성',
       cancelText: '새로 작성',
     }).then((resume) => {
@@ -421,7 +423,8 @@ export default function ShowUpsertForm(props: Props) {
     hasChanges,
     isUpdate
       ? '저장하지 않은 변경 사항은 사라집니다. 나가시겠습니까?'
-      : `작성 중인 내용은 임시저장되어 다음에 이어서 작성할 수 있습니다.${hasNewFiles ? ' 첨부한 이미지는 다시 첨부해야 합니다.' : ''} 나가시겠습니까?`,
+      : '작성 중인 내용은 임시저장되어 다음에 이어서 작성할 수 있습니다. 나가시겠습니까?',
+    isUpdate ? undefined : DRAFT_IMAGE_WARNING,
   );
 
   // 수정일 때 상태 체크

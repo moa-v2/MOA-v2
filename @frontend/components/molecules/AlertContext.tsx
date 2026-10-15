@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 export interface AlertOptions {
   title: string;
   description?: string;
+  // 설명 아래 한 줄 띄우고 빨간색으로 보여 줄 주의 문구
+  warning?: string;
   confirmText?: string;
   cancelText?: string;
   variant?: 'default' | 'destructive';
@@ -159,8 +161,13 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{config.title}</AlertDialogTitle>
-            {config.description && (
-              <AlertDialogDescription>{config.description}</AlertDialogDescription>
+            {(config.description || config.warning) && (
+              <AlertDialogDescription>
+                {config.description}
+                {config.warning && (
+                  <span className="text-destructive mt-5 block">{config.warning}</span>
+                )}
+              </AlertDialogDescription>
             )}
           </AlertDialogHeader>
 
