@@ -10,7 +10,7 @@ export const REGION_LABELS: Record<Region, string> = {
   GWANGJU: '광주',
   ULSAN: '울산',
   SEJONG: '세종',
-  GANGWON: '광주',
+  GANGWON: '강원',
   CHUNGBUK: '충북',
   CHUNGNAM: '충남',
   JEONBUK: '전북',
