@@ -30,8 +30,8 @@ interface DemoShow {
   hallName: string;
   poster: string;
   viewCount: number;
-  /** 다음 20시(KST)에 판매가 열리는 공연(카운트다운 시연용) */
-  opensSoon?: boolean;
+  /** 판매 시작 전 공연: 오늘부터 며칠 뒤 몇 시(KST)에 판매가 열림(카운트다운·오픈 예정 시연용) */
+  opensAt?: { inDays: number; hour: number };
   grades: SeatGrade[];
 }
 
@@ -59,7 +59,7 @@ const DEMO_SHOWS: DemoShow[] = [
     hallName: '우리은행홀',
     poster: 'd651d7a7-c527-4d37-893d-7c523b091e76',
     viewCount: 12400,
-    opensSoon: true,
+    opensAt: { inDays: 0, hour: 20 },
     grades: [
       ['VIP', 180000, 300],
       ['R', 150000, 400],
@@ -74,6 +74,7 @@ const DEMO_SHOWS: DemoShow[] = [
     hallName: '',
     poster: 'd7d1bde9-e335-4e30-86df-75172a92f4d1',
     viewCount: 7600,
+    opensAt: { inDays: 6, hour: 10 },
     grades: [['전석', 55000, 150]],
   },
   {
@@ -84,6 +85,7 @@ const DEMO_SHOWS: DemoShow[] = [
     hallName: '오페라극장',
     poster: 'bfff7d77-5520-48a6-9cca-475fcaf21973',
     viewCount: 6900,
+    opensAt: { inDays: 2, hour: 14 },
     grades: [
       ['R', 150000, 500],
       ['S', 120000, 500],
@@ -127,13 +129,10 @@ function buildSchedules(show: DemoShow, firstDay: number): ShowCatalog.Schedule[
 
 function buildShow(show: DemoShow, now: number): ShowCatalog.Detail {
   const today = startOfKstDay(now);
-  const openTonight = today + 20 * HOUR;
-  const saleStart = show.opensSoon
-    ? now < openTonight
-      ? openTonight
-      : openTonight + DAY
-    : today - 14 * DAY + 10 * HOUR;
-  const firstDay = show.opensSoon ? startOfKstDay(saleStart) + 14 * DAY : today + DAY;
+  // 오픈 시각이 이미 지났으면 하루 뒤로 미뤄 늘 오픈 예정으로 보이게 함
+  const openAt = show.opensAt && today + show.opensAt.inDays * DAY + show.opensAt.hour * HOUR;
+  const saleStart = openAt ? (now < openAt ? openAt : openAt + DAY) : today - 14 * DAY + 10 * HOUR;
+  const firstDay = openAt ? startOfKstDay(saleStart) + 14 * DAY : today + DAY;
   const lastDay = firstDay + (SCHEDULE_DAYS - 1) * DAY;
   const posterUrl = `${POSTER_BASE}/${show.poster}.gif`;
 
@@ -141,7 +140,7 @@ function buildShow(show: DemoShow, now: number): ShowCatalog.Detail {
     id: show.id,
     title: show.title,
     genre: show.genre,
-    status: show.opensSoon ? 'WAITING' : 'ON_SALE',
+    status: openAt ? 'WAITING' : 'ON_SALE',
     saleStatus: 'ALLOWED',
     posterUrl,
     location: { region: 'SEOUL', venue: show.venue, hallName: show.hallName },

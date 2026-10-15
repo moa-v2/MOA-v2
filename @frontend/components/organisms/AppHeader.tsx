@@ -6,11 +6,12 @@ import { usePathname } from 'next/navigation';
 import { useStore } from 'zustand';
 import { Header } from './Header';
 
-const HIDE_HEADER_PREFIXES = [ADMIN_ROUTES.DASHBOARD, '/shows/reservation'] as const;
+// 관리자 화면과 예매 팝업은 사이트 머리글·바닥글 없이 보여줌
+export const HIDE_SITE_CHROME_PREFIXES = [ADMIN_ROUTES.DASHBOARD, '/shows/reservation'] as const;
 
 export function AppHeader() {
   const pathname = usePathname();
-  const hidden = HIDE_HEADER_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  const hidden = HIDE_SITE_CHROME_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const isDemo = useStore(demoModeStore, (state) => state.active);
 
   return (

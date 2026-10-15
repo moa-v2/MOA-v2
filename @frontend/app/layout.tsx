@@ -4,6 +4,7 @@ import './globals.css';
 import { Providers } from '@/lib/client-providers';
 import { AuthProvider } from '@/lib/auth/AuthContext';
 import { AlertProvider } from '@/components/molecules/AlertContext';
+import { AppFooter } from '@/components/organisms/AppFooter';
 import { AppHeader } from '@/components/organisms/AppHeader';
 
 const inter = Inter({
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AlertProvider>
               <AppHeader />
               <main>{children}</main>
+              <AppFooter />
             </AlertProvider>
           </AuthProvider>
         </Providers>

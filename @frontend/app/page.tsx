@@ -1,6 +1,7 @@
 'use client';
 
 import ShowList from './(home)/_components/ShowList';
+import TicketOpenSoon from './(home)/_components/TicketOpenSoon';
 import MainHeroBanner from '@/components/organisms/MainHeroBanner';
 import { useAlert } from '@/components/molecules/AlertContext';
 import { ADMIN_ONLY_ERROR } from '@/lib/auth/session';
@@ -29,6 +30,8 @@ export default function Home() {
       {/* Main Content */}
       <section className="py-12">
         <div className="container mx-auto px-4">
+          <TicketOpenSoon />
+
           {/* Featured Shows */}
           <div className="mb-16">
             <h2 className="mb-8 text-2xl font-bold">장르별 인기공연</h2>

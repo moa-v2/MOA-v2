@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/atoms';
 import { getShowCatalogList } from '@/lib/api/show';
+import { formatCountdown, getKstDayDiff, kstToMs } from '@/lib/common/date';
 import { getServerNow, useServerClock } from '@/lib/server-clock';
 import dayjs from '@/plugins/dayjs';
 import { useQuery } from '@tanstack/react-query';
@@ -20,15 +21,7 @@ const POPULAR_PARAMS: ShowCatalog.ListParams = {
   orderDirection: 'desc',
 };
 const SLIDE_COUNT = 3;
-
-const toKstMs = (value: string) => dayjs.tz(value, 'Asia/Seoul').valueOf();
-
-function formatCountdown(totalSeconds: number) {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  return [h, m, s].map((value) => String(value).padStart(2, '0')).join(':');
-}
+const DAY_SECONDS = 24 * 60 * 60;
 
 function HeroSlide({
   show,
@@ -74,7 +67,12 @@ function HeroSlide({
           {isUpcoming && remaining !== null && (
             <div className="flex items-baseline gap-3">
               <span className="text-sm text-white/70">티켓 오픈까지</span>
-              <span className="text-4xl font-bold tabular-nums">{formatCountdown(remaining)}</span>
+              {/* 24시간 전부터 시:분:초, 그 전에는 D-day(공연 상세와 같은 기준) */}
+              <span className="text-4xl font-bold tabular-nums">
+                {remaining > DAY_SECONDS
+                  ? `D-${getKstDayDiff(openAtMs - remaining * 1000, openAtMs)}`
+                  : formatCountdown(remaining)}
+              </span>
             </div>
           )}
           <Button asChild size="lg" className="bg-white text-slate-900 hover:bg-white/90">
@@ -107,7 +105,7 @@ export default function MainHeroBanner() {
   const slides = useMemo(() => {
     const now = getServerNow();
     return (data?.content ?? [])
-      .map((show) => ({ show, openAtMs: toKstMs(show.salePeriod.startDate) }))
+      .map((show) => ({ show, openAtMs: kstToMs(show.salePeriod.startDate) }))
       .sort((a, b) => Number(b.openAtMs > now) - Number(a.openAtMs > now))
       .slice(0, SLIDE_COUNT);
   }, [data]);
