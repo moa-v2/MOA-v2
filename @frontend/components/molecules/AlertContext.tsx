@@ -154,7 +154,8 @@ export function AlertProvider({ children }: { children: React.ReactNode }) {
   return (
     <AlertContext.Provider value={{ confirm, confirmWithInput, alert }}>
       {children}
-      <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+      {/* ESC 로 닫으면 취소로 처리(결과를 안 돌려주면 확인창을 띄운 쪽이 계속 기다림) */}
+      <AlertDialog open={isOpen} onOpenChange={(open) => (open ? setIsOpen(true) : handleCancel())}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{config.title}</AlertDialogTitle>
