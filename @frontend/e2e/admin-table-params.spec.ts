@@ -43,6 +43,8 @@ test.describe('관리자 목록 조건을 주소에 저장', () => {
     await page.goto('/admin/shows');
     await expect(page.getByText('1 / 5')).toBeVisible();
     expect(api.lastRequest()).toEqual({ page: '0', size: '10' });
+    // 관리자 화면에는 사이트 바닥글을 붙이지 않음
+    await expect(page.getByRole('contentinfo')).toHaveCount(0);
 
     await page.getByRole('button', { name: '장르 필터' }).click();
     await page.getByRole('menuitemcheckbox', { name: '뮤지컬' }).click();

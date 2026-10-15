@@ -7,8 +7,26 @@ test.describe('백엔드에 연결할 수 없을 때', () => {
 
     await expect(page.getByText('데모 데이터를 보여주고 있습니다')).toBeVisible();
     await expect(page.getByText('뮤지컬 <엘리자벳>').first()).toBeVisible();
-    // 메인 배너는 판매 시작 전 공연(엘리자벳)을 카운트다운과 함께 먼저 보여줌
-    await expect(page.getByText('티켓 오픈까지')).toBeVisible();
+    // 메인 배너는 판매 시작 전 공연을 카운트다운(또는 D-day)과 함께 먼저 보여줌
+    await expect(page.getByText('티켓 오픈까지').first()).toBeVisible();
+  });
+
+  test('메인에 티켓 오픈 예정 공연이 오픈이 가까운 순서로 나온다', async ({ page }) => {
+    await page.goto('/');
+
+    // 데모 공연: 엘리자벳(다음 20시), 투란토드(2일 뒤 14시), 불편한 편의점2(6일 뒤 10시)
+    const items = page.getByRole('region', { name: '티켓 오픈 예정' }).getByRole('listitem');
+    await expect(items).toHaveCount(3);
+    await expect(items.nth(0)).toContainText('뮤지컬 <엘리자벳>');
+    await expect(items.nth(0)).toContainText(/\d{2}:\d{2}:\d{2}$/);
+    await expect(items.nth(1)).toContainText('오페라 <투란토드>');
+    await expect(items.nth(1)).toContainText('D-2');
+    await expect(items.nth(2)).toContainText('뮤직드라마 <불편한 편의점2>');
+    await expect(items.nth(2)).toContainText('D-6');
+
+    await expect(
+      page.getByRole('contentinfo').getByRole('link', { name: 'GitHub' }),
+    ).toHaveAttribute('href', 'https://github.com/moa-v2/MOA-v2');
   });
 
   test('공연 목록 페이지에서 검색할 수 있다', async ({ page }) => {
