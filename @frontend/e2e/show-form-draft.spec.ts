@@ -88,6 +88,10 @@ test.describe('공연 등록 임시저장', () => {
     page.on('dialog', (browserDialog) => browserDialog.accept());
     await page.reload();
     await expect(dialog(page)).toContainText('작성하던 공연이 있습니다');
+    await expect(dialog(page).getByRole('heading', { name: '임시 저장' })).toBeVisible();
+    await expect(dialog(page).getByText('첨부한 이미지는 저장되지 않습니다.')).toHaveClass(
+      /text-destructive/,
+    );
     await page.getByRole('button', { name: '이어서 작성' }).click();
 
     await expect(page.locator('#title')).toHaveValue('임시저장 테스트 공연');
@@ -180,6 +184,9 @@ test.describe('공연 등록 이탈 경고', () => {
 
     await sidebarLink(page, '공연 관리').click();
     await expect(dialog(page)).toContainText('작성 중인 내용은 임시저장되어');
+    await expect(dialog(page).getByText('첨부한 이미지는 저장되지 않습니다.')).toHaveClass(
+      /text-destructive/,
+    );
     await page.getByRole('button', { name: '머무르기' }).click();
     await expect(page).toHaveURL('/admin/shows/upsert');
     await expect(page.locator('#title')).toHaveValue('나가기 전 확인');
