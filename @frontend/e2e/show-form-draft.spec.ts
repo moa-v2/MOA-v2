@@ -8,11 +8,45 @@ const ADMIN = {
   providerId: '1',
 };
 const DRAFT_KEY = `moa:draft:show-create:${ADMIN.email}`;
-const SEAT_MAP = {
-  seatMapId: '1',
+const SEAT_MAPS = [
+  ['테스트 아트센터', '대극장'],
+  ['테스트 아트센터', '소극장'],
+  ['두번째 극장', '큰홀'],
+].map(([venueName, hallName], index) => ({
+  seatMapId: String(index + 1),
+  region: 'SEOUL',
+  venueName,
+  hallName,
+  createdAt: '2026-10-01T00:00:00',
+  updatedAt: '2026-10-01T00:00:00',
+}));
+// 수정 화면용 예매 대기 공연(장소·공연장을 바꿀 수 있는 상태)
+const EDIT_SHOW = {
+  id: 7,
+  title: '수정할 공연',
+  genre: 'MUSICAL',
   region: 'SEOUL',
   venueName: '테스트 아트센터',
   hallName: '대극장',
+  runningTime: '150분',
+  cast: '테스트 배우',
+  status: 'WAITING',
+  saleStatus: 'ALLOWED',
+  saleStartDate: '2026-11-10T10:00:00',
+  saleEndDate: '2026-12-01T17:30:00',
+  posterUrl: 'https://d23ve22iivj7kg.cloudfront.net/posters/2026/0717/e2e.png',
+  detailImageUrls: [],
+  detailImages: [],
+  schedules: [
+    {
+      scheduleId: 1,
+      showDate: '2026-12-01',
+      showTime: '19:30',
+      ticketOpenTime: '2026-11-20T10:00:00',
+      reservationCount: 0,
+    },
+  ],
+  seatPrices: [],
   createdAt: '2026-10-01T00:00:00',
   updatedAt: '2026-10-01T00:00:00',
 };
@@ -34,7 +68,13 @@ async function setUpAdmin(page: Page) {
   await page.route(
     (url) => url.pathname === '/api/v1/admin/seat-maps',
     (route) =>
-      route.fulfill({ json: ok({ content: [SEAT_MAP], totalPages: 1, totalElements: 1 }) }),
+      route.fulfill({
+        json: ok({ content: SEAT_MAPS, totalPages: 1, totalElements: SEAT_MAPS.length }),
+      }),
+  );
+  await page.route(
+    (url) => url.pathname === `/api/v1/admin/shows/${EDIT_SHOW.id}`,
+    (route) => route.fulfill({ json: ok(EDIT_SHOW) }),
   );
   await page.route(
     (url) => url.pathname === '/api/v1/admin/shows',
@@ -239,5 +279,31 @@ test.describe('공연 등록 이탈 경고', () => {
     expect(shown.type()).toBe('beforeunload');
     await shown.dismiss();
     await expect(page.locator('#title')).toHaveValue('닫기 전 확인');
+  });
+});
+
+test.describe('공연 수정 화면', () => {
+  async function openEditForm(page: Page) {
+    await setUpAdmin(page);
+    await page.goto(`/admin/shows/upsert/${EDIT_SHOW.id}`);
+    await expect(page.locator('#venueName')).toContainText('테스트 아트센터');
+    await expect(page.locator('#hallName')).toContainText('대극장');
+  }
+
+  test('불러온 장소·공연장을 바꾸면 바꾼 값이 유지된다', async ({ page }) => {
+    await openEditForm(page);
+    await select(page, 'venueName', '두번째 극장');
+    await select(page, 'hallName', '큰홀');
+
+    // 공연장 선택지가 바뀌어도 서버 값으로 되돌리지 않는지 잠시 두고 확인
+    await page.waitForTimeout(1000);
+    await expect(page.locator('#venueName')).toContainText('두번째 극장');
+    await expect(page.locator('#hallName')).toContainText('큰홀');
+  });
+
+  test('열기만 하고 바꾸지 않으면 묻지 않고 나간다', async ({ page }) => {
+    await openEditForm(page);
+    await sidebarLink(page, '공연 관리').click();
+    await expect(page).toHaveURL('/admin/shows');
   });
 });
