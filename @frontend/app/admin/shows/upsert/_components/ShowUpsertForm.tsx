@@ -20,17 +20,24 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Genre, Region } from '@shared/enums';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FieldErrors, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { PageCard } from '@/components/molecules/PageCard';
 import StatusBadge from '@/components/molecules/StatusBadge';
 import { getSeatMapList } from '@/lib/api/admin/seat';
+import { useAuth } from '@/lib/auth/AuthContext';
+import { loadDraft, removeDraft, saveDraft } from '@/lib/form-draft';
+import { useLeaveGuard } from '@/hooks/useLeaveGuard';
 
 interface Props {
   id?: string;
 }
 type ActionType = '입력' | '선택';
+
+// 등록 화면 임시저장: 3일 지나면 묻지 않고 지우고, 입력을 멈추고 1초 뒤 자동 저장
+const DRAFT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const DRAFT_SAVE_DELAY_MS = 1000;
 
 // 공연 일정 중에서 첫 번째 공연 시각(날짜+시간)을 찾는 함수
 function getFirstShowDateTime(schedules?: Show.Schedules[]) {
@@ -134,6 +141,7 @@ export type ShowFormData = z.infer<typeof showFormSchema>;
 export default function ShowUpsertForm(props: Props) {
   const router = useRouter();
   const { confirm } = useAlert();
+  const { user } = useAuth();
 
   const showId = Number(props.id) || -1;
   const isUpdate = !!showId && showId > 0;
@@ -152,6 +160,17 @@ export default function ShowUpsertForm(props: Props) {
   const [detailFiles, setDetailFiles] = useState<File[]>([]);
   const [deletedScheduleIds, setDeletedScheduleIds] = useState<number[]>([]);
   const [deletedDetailImageIds, setDeletedDetailImageIds] = useState<number[]>([]);
+
+  // 임시저장(등록 화면만, 관리자 계정별)
+  const draftKey = !isUpdate && user?.email ? `show-create:${user.email}` : null;
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [draftLocation, setDraftLocation] = useState<Pick<
+    ShowFormData,
+    'region' | 'venueName' | 'hallName'
+  > | null>(null);
+  const draftAskedRef = useRef(false);
+  const [submitted, setSubmitted] = useState(false);
 
   function createEmptySchedule() {
     return {
@@ -181,11 +200,12 @@ export default function ShowUpsertForm(props: Props) {
     register,
     handleSubmit,
     control,
+    getValues,
     setValue,
     setError,
     clearErrors,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<ShowFormData>({
     resolver: zodResolver(showFormSchema),
     defaultValues: getDefaultValues(),
@@ -309,6 +329,100 @@ export default function ShowUpsertForm(props: Props) {
       });
     });
   }, [isUpdate, data, reset]);
+
+  // 등록 화면에 들어오면 임시저장을 불러올지 한 번 물어봄
+  useEffect(() => {
+    if (!mounted || !draftKey || draftAskedRef.current) return;
+    draftAskedRef.current = true;
+
+    const draft = loadDraft<ShowFormData>(draftKey, DRAFT_MAX_AGE_MS);
+    if (!draft) {
+      setDraftReady(true);
+      return;
+    }
+    void confirm({
+      title: '임시저장된 공연',
+      description: `${dayjs(draft.savedAt).format('M월 D일 HH:mm')}에 작성하던 공연이 있습니다. 이어서 작성할까요? 첨부한 이미지는 다시 첨부해야 합니다.`,
+      confirmText: '이어서 작성',
+      cancelText: '새로 작성',
+    }).then((resume) => {
+      if (resume) {
+        // 기본값(빈 폼)은 그대로 둬야 불러온 내용이 '바뀐 입력'으로 남아 이탈 경고가 걸림
+        // 장소·공연장은 선택지가 나온 뒤에 아래 effect 가 채움
+        reset({ ...draft.values, venueName: '', hallName: '' }, { keepDefaultValues: true });
+        const { region, venueName, hallName } = draft.values;
+        setDraftLocation({ region, venueName, hallName });
+        setDraftSavedAt(draft.savedAt);
+      } else {
+        removeDraft(draftKey);
+      }
+      setDraftReady(true);
+    });
+  }, [mounted, draftKey, confirm, reset]);
+
+  // 불러온 지역의 좌석 목록이 온 뒤에 장소 → 공연장 순서로 채움
+  // 선택 상자는 선택지와 값이 같은 순간에 들어오면 값을 버리므로, 선택지가 나온 다음 렌더에서 넣음
+  useEffect(() => {
+    if (!draftLocation || isSeatMapFetching || watchedRegion !== draftLocation.region) return;
+    const { venueName, hallName } = draftLocation;
+    // 그사이 없어진 장소·공연장이면 비워 둔 채 끝냄
+    if (!venueOptions.some((option) => option.value === venueName)) {
+      setDraftLocation(null);
+      return;
+    }
+    if (watchedVenueName !== venueName) {
+      setValue(SHOW_FORM_FIELDS.VENUE_NAME, venueName, { shouldDirty: true });
+      return;
+    }
+    if (!hallOptions.some((option) => option.value === hallName)) {
+      setDraftLocation(null);
+      return;
+    }
+    if (watchedHallName !== hallName) {
+      setValue(SHOW_FORM_FIELDS.HALL_NAME, hallName, { shouldDirty: true });
+      return;
+    }
+    setDraftLocation(null);
+  }, [
+    draftLocation,
+    isSeatMapFetching,
+    watchedRegion,
+    watchedVenueName,
+    watchedHallName,
+    venueOptions,
+    hallOptions,
+    setValue,
+  ]);
+
+  // 입력을 멈추고 잠시 뒤 자동 임시저장. 빈 폼으로 돌아가면 지움
+  const formValues = useWatch({ control });
+  useEffect(() => {
+    if (!draftKey || !draftReady || draftLocation || submitted) return;
+    const timer = setTimeout(() => {
+      if (isDirty) {
+        setDraftSavedAt(saveDraft(draftKey, formValues));
+      } else {
+        removeDraft(draftKey);
+        setDraftSavedAt(null);
+      }
+    }, DRAFT_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [draftKey, draftReady, draftLocation, submitted, formValues, isDirty]);
+
+  function handleSaveDraft() {
+    if (draftKey) setDraftSavedAt(saveDraft(draftKey, getValues()));
+  }
+
+  // 저장하지 않은 입력이 있으면 나가기 전에 확인
+  const hasNewFiles = !!posterFile || detailFiles.length > 0;
+  const hasChanges =
+    isDirty || hasNewFiles || deletedScheduleIds.length > 0 || deletedDetailImageIds.length > 0;
+  const { confirmLeave } = useLeaveGuard(
+    hasChanges,
+    isUpdate
+      ? '저장하지 않은 변경 사항은 사라집니다. 나가시겠습니까?'
+      : `작성 중인 내용은 임시저장되어 다음에 이어서 작성할 수 있습니다.${hasNewFiles ? ' 첨부한 이미지는 다시 첨부해야 합니다.' : ''} 나가시겠습니까?`,
+  );
 
   // 수정일 때 상태 체크
   // - WAITING: 모든 필드 수정 가능
@@ -541,6 +655,8 @@ export default function ShowUpsertForm(props: Props) {
 
     // 성공시 목록으로 이동 및 새로고침
     if (response.success && response?.data?.showId && response.data.showId > 0) {
+      setSubmitted(true);
+      if (draftKey) removeDraft(draftKey);
       router.push(ADMIN_ROUTES.SHOW);
       queryClient.refetchQueries({ queryKey: ['admin', 'show', 'list'] });
     }
@@ -555,7 +671,9 @@ export default function ShowUpsertForm(props: Props) {
 
   return (
     <PageCard>
-      <PageCard.Title useRouteBack={true}>공연 {flag}</PageCard.Title>
+      <PageCard.Title useRouteBack={true} onBack={() => confirmLeave(router.back)}>
+        공연 {flag}
+      </PageCard.Title>
       <PageCard.Content>
         {!mounted ? (
           // 서버 사이드에서 렌더링 중에 로딩 화면 표시
@@ -740,10 +858,22 @@ export default function ShowUpsertForm(props: Props) {
                       variant="outline"
                       size="lg"
                       className="h-12 flex-1 text-base"
-                      onClick={router.back}
+                      onClick={() => confirmLeave(router.back)}
                     >
                       이전
                     </Button>
+                    {!isUpdate && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="lg"
+                        className="h-12 flex-1 text-base"
+                        onClick={handleSaveDraft}
+                        disabled={!draftKey || !isDirty}
+                      >
+                        임시저장
+                      </Button>
+                    )}
                     <Button
                       type="submit"
                       size="lg"
@@ -755,6 +885,11 @@ export default function ShowUpsertForm(props: Props) {
                   </>
                 )}
               </div>
+              {draftSavedAt && (
+                <p className="text-muted-foreground -mt-3 text-right text-sm">
+                  임시저장됨 {dayjs(draftSavedAt).format('HH:mm')}
+                </p>
+              )}
             </div>
           </form>
         )}

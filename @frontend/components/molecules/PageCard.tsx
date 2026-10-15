@@ -13,15 +13,19 @@ function PageCardTitle({
   children,
   buttonGroups,
   useRouteBack = true,
+  onBack,
 }: {
   children?: ReactNode;
   buttonGroups?: ReactNode;
   useRouteBack?: boolean;
+  // 뒤로 가기 전에 확인이 필요한 화면(작성 중인 폼 등)
+  onBack?: () => void;
 }) {
   const router = useRouter();
 
   const handleRouterBack = () => {
-    router.back();
+    if (onBack) onBack();
+    else router.back();
   };
 
   return (
