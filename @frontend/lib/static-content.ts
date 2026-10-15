@@ -3,7 +3,7 @@ import { getRegionLabel } from '@/lib/common/labels';
 /**
  * 손으로 관리하는 화면 데이터
  * - 데모 공연: 백엔드에 연결할 수 없을 때 API 중계 라우트(app/api/[...path])와 공연 상세 서버 렌더링이 대신 내려줌(메인 배너·목록·상세에 그대로 나옴).
- *   날짜는 요청 시점 기준으로 계산해 기간 지난 공연이 나오지 않음. 조회 외 요청(로그인·예매 등)은 이용 불가(503)
+ *   날짜는 요청 시점 기준으로 계산해 언제 열어도 오픈 예정·판매 중·종료 구성이 그대로임. 조회 외 요청(로그인·예매 등)은 이용 불가(503)
  */
 
 // 백엔드 대신 데모로 응답하는 기준(API 중계 라우트·공연 상세 서버 렌더링 공용)
@@ -18,7 +18,7 @@ const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const KST_OFFSET = 9 * HOUR;
 const SCHEDULE_DAYS = 21;
-const POSTER_BASE = 'https://d23ve22iivj7kg.cloudfront.net/posters/2026/0717';
+const POSTER_BASE = '/demo-posters';
 
 type SeatGrade = [sectionName: string, price: number, totalSeats: number];
 
@@ -26,83 +26,142 @@ interface DemoShow {
   id: number;
   title: string;
   genre: ShowCatalog.Genre;
+  /** 없으면 서울 */
+  region?: ShowCatalog.Region;
   venue: string;
   hallName: string;
-  poster: string;
+  /** public/demo-posters 아래 파일 이름(확장자 제외) */
+  poster?: string;
   viewCount: number;
   /** 판매 시작 전 공연: 오늘부터 며칠 뒤 몇 시(KST)에 판매가 열림(카운트다운·오픈 예정 시연용) */
   opensAt?: { inDays: number; hour: number };
+  /** 끝난 공연: 며칠 전에 마지막 회차가 끝남(1 이상) */
+  endedDaysAgo?: number;
   grades: SeatGrade[];
 }
 
-// id 는 실제 카탈로그와 같게 맞춰 백엔드가 살았다 죽었다 해도 같은 공연을 가리키게 함
+// id 는 실제 카탈로그와 겹치지 않게 101번부터(백엔드가 살아났을 때 다른 공연을 가리키지 않도록)
 const DEMO_SHOWS: DemoShow[] = [
   {
-    id: 1,
-    title: '뮤지컬 <베토벤>',
+    id: 101,
+    title: '뮤지컬 <광화문연가>',
     genre: 'MUSICAL',
-    venue: '세종문화회관',
-    hallName: '대극장',
-    poster: '4975c3e8-51ab-4336-8989-414e38e0a647',
-    viewCount: 9800,
+    venue: '디큐브 링크아트센터',
+    hallName: '',
+    poster: 'gwanghwamun-yeonga',
+    viewCount: 4200,
+    endedDaysAgo: 3,
     grades: [
-      ['VIP', 170000, 300],
-      ['R', 140000, 400],
-      ['S', 110000, 300],
+      ['VIP', 170000, 400],
+      ['R', 140000, 450],
+      ['S', 110000, 350],
     ],
   },
   {
-    id: 2,
-    title: '뮤지컬 <엘리자벳>',
+    id: 102,
+    title: '뮤지컬 <오페라의 유령> (Phantom of The Opera)',
     genre: 'MUSICAL',
     venue: '블루스퀘어',
     hallName: '우리은행홀',
-    poster: 'd651d7a7-c527-4d37-893d-7c523b091e76',
-    viewCount: 12400,
+    poster: 'phantom-of-the-opera',
+    viewCount: 15200,
     opensAt: { inDays: 0, hour: 20 },
     grades: [
-      ['VIP', 180000, 300],
-      ['R', 150000, 400],
-      ['S', 120000, 300],
+      ['VIP', 190000, 500],
+      ['R', 160000, 600],
+      ['S', 130000, 400],
+      ['A', 90000, 260],
     ],
   },
   {
-    id: 3,
-    title: '뮤직드라마 <불편한 편의점2>',
-    genre: 'THEATER',
-    venue: '후암씨어터',
+    id: 103,
+    title: '뮤지컬 스위니토드(SWEENEY TODD) - 10주년',
+    genre: 'MUSICAL',
+    venue: '디큐브 링크아트센터',
     hallName: '',
-    poster: 'd7d1bde9-e335-4e30-86df-75172a92f4d1',
-    viewCount: 7600,
-    opensAt: { inDays: 6, hour: 10 },
-    grades: [['전석', 55000, 150]],
-  },
-  {
-    id: 4,
-    title: '오페라 <투란토드>',
-    genre: 'CLASSIC',
-    venue: '예술의전당',
-    hallName: '오페라극장',
-    poster: 'bfff7d77-5520-48a6-9cca-475fcaf21973',
-    viewCount: 6900,
-    opensAt: { inDays: 2, hour: 14 },
+    poster: 'sweeney-todd',
+    viewCount: 11800,
     grades: [
-      ['R', 150000, 500],
-      ['S', 120000, 500],
-      ['A', 80000, 400],
+      ['VIP', 170000, 400],
+      ['R', 140000, 450],
+      ['S', 110000, 350],
     ],
   },
   {
-    id: 5,
-    title: '연극 <베니스의 상인>',
-    genre: 'THEATER',
-    venue: '국립극장',
-    hallName: '해오름극장',
-    poster: '2a978d48-42a4-400b-913b-60548d221114',
-    viewCount: 5300,
+    id: 104,
+    title: '2026 유니버설발레단 <호두까기인형>',
+    genre: 'DANCE',
+    venue: '세종문화회관',
+    hallName: '대극장',
+    poster: 'nutcracker',
+    viewCount: 8700,
+    opensAt: { inDays: 3, hour: 11 },
     grades: [
-      ['R', 70000, 600],
-      ['S', 50000, 600],
+      ['VIP', 120000, 600],
+      ['R', 100000, 900],
+      ['S', 70000, 900],
+      ['A', 50000, 600],
+    ],
+  },
+  {
+    id: 105,
+    title: '연극 <클로저>',
+    genre: 'THEATER',
+    venue: '예스24스테이지',
+    hallName: '2관',
+    poster: 'closer',
+    viewCount: 2600,
+    endedDaysAgo: 10,
+    grades: [
+      ['R', 66000, 200],
+      ['S', 55000, 140],
+    ],
+  },
+  {
+    id: 106,
+    title: '뮤지컬 <그날들> - 부산',
+    genre: 'MUSICAL',
+    region: 'BUSAN',
+    venue: '드림씨어터',
+    hallName: '',
+    poster: 'geunaldeul',
+    viewCount: 7300,
+    grades: [
+      ['VIP', 160000, 500],
+      ['R', 130000, 600],
+      ['S', 100000, 400],
+      ['A', 70000, 200],
+    ],
+  },
+  {
+    id: 107,
+    title: '뮤지컬 <캣츠> 내한공연 - 대구',
+    genre: 'MUSICAL',
+    region: 'DAEGU',
+    venue: '계명아트센터',
+    hallName: '',
+    poster: 'cats',
+    viewCount: 10400,
+    opensAt: { inDays: 6, hour: 14 },
+    grades: [
+      ['VIP', 180000, 500],
+      ['R', 150000, 600],
+      ['S', 110000, 500],
+      ['A', 80000, 350],
+    ],
+  },
+  {
+    id: 108,
+    title: '뮤지컬 <사의 찬미> - 춘천',
+    genre: 'MUSICAL',
+    region: 'GANGWON',
+    venue: '춘천문화예술회관',
+    hallName: '',
+    poster: 'gloomy-day',
+    viewCount: 5100,
+    grades: [
+      ['R', 60000, 450],
+      ['S', 45000, 350],
     ],
   },
 ];
@@ -127,30 +186,47 @@ function buildSchedules(show: DemoShow, firstDay: number): ShowCatalog.Schedule[
   });
 }
 
-function buildShow(show: DemoShow, now: number): ShowCatalog.Detail {
+/** 판매 단계별 판매 시작 시각·첫 공연일(오늘 기준으로 계산해 언제 열어도 같은 단계로 보임) */
+function getSalePlan(show: DemoShow, now: number) {
   const today = startOfKstDay(now);
-  // 오픈 시각이 이미 지났으면 하루 뒤로 미뤄 늘 오픈 예정으로 보이게 함
-  const openAt = show.opensAt && today + show.opensAt.inDays * DAY + show.opensAt.hour * HOUR;
-  const saleStart = openAt ? (now < openAt ? openAt : openAt + DAY) : today - 14 * DAY + 10 * HOUR;
-  const firstDay = openAt ? startOfKstDay(saleStart) + 14 * DAY : today + DAY;
+  if (show.opensAt) {
+    const openAt = today + show.opensAt.inDays * DAY + show.opensAt.hour * HOUR;
+    // 오픈 시각이 이미 지났으면 하루 뒤로 미뤄 늘 오픈 예정으로 보이게 함
+    const saleStart = now < openAt ? openAt : openAt + DAY;
+    return { status: 'WAITING', saleStart, firstDay: startOfKstDay(saleStart) + 14 * DAY } as const;
+  }
+  if (show.endedDaysAgo) {
+    const firstDay = today - (show.endedDaysAgo + SCHEDULE_DAYS - 1) * DAY;
+    return { status: 'ENDED', saleStart: firstDay - 30 * DAY + 10 * HOUR, firstDay } as const;
+  }
+  return {
+    status: 'ON_SALE',
+    saleStart: today - 14 * DAY + 10 * HOUR,
+    firstDay: today + DAY,
+  } as const;
+}
+
+function buildShow(show: DemoShow, now: number): ShowCatalog.Detail {
+  const { status, saleStart, firstDay } = getSalePlan(show, now);
   const lastDay = firstDay + (SCHEDULE_DAYS - 1) * DAY;
-  const posterUrl = `${POSTER_BASE}/${show.poster}.gif`;
+  const posterUrl = show.poster ? `${POSTER_BASE}/${show.poster}.gif` : '';
 
   return {
     id: show.id,
     title: show.title,
     genre: show.genre,
-    status: openAt ? 'WAITING' : 'ON_SALE',
+    status,
     saleStatus: 'ALLOWED',
     posterUrl,
-    location: { region: 'SEOUL', venue: show.venue, hallName: show.hallName },
+    location: { region: show.region ?? 'SEOUL', venue: show.venue, hallName: show.hallName },
     salePeriod: { startDate: toKstDateTime(saleStart), endDate: toKstDateTime(lastDay + DAY) },
-    createdAt: toKstDateTime(today - show.id * 3 * DAY),
+    // 판매 시작 일주일 전에 등록한 것으로(오늘을 넘지 않게)
+    createdAt: toKstDateTime(Math.min(saleStart - 7 * DAY, startOfKstDay(now))),
     viewCount: show.viewCount,
     startDate: toKstDate(firstDay),
     endDate: toKstDate(lastDay),
     schedules: buildSchedules(show, firstDay),
-    detailImageUrls: [posterUrl],
+    detailImageUrls: posterUrl ? [posterUrl] : [],
     runningTime: '-',
     cast: '-',
   };
