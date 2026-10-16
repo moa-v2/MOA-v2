@@ -5,6 +5,8 @@ const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://localhost:${PORT}`;
 // 포트 9 등은 fetch 가 막는 포트라 쓰지 않음
 const MOCK_BACKEND_PORT = 59999;
+// CI 는 매번 빈 캐시라 next dev 가 화면마다 처음 컴파일하느라 시간 초과가 남 → 배포 빌드로 띄움
+const IS_CI = Boolean(process.env.CI);
 
 export default defineConfig({
   testDir: './e2e',
@@ -28,13 +30,15 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `pnpm exec next dev --port ${PORT}`,
+      command: IS_CI
+        ? `pnpm build && pnpm exec next start --port ${PORT}`
+        : `pnpm exec next dev --port ${PORT}`,
       url: baseURL,
-      // 실제 백엔드 상태와 상관없이 항상 같은 결과가 나오도록 가짜 백엔드에 붙임
+      // 실제 백엔드 상태와 상관없이 항상 같은 결과가 나오도록 가짜 백엔드에 붙임(빌드 때 박히는 값이라 빌드에도 넘김)
       env: { NEXT_PUBLIC_BACKEND_URL: `http://127.0.0.1:${MOCK_BACKEND_PORT}` },
       // 이미 떠 있는 서버는 실제 백엔드에 붙어 있을 수 있어 재사용하지 않음
       reuseExistingServer: false,
-      timeout: 120_000,
+      timeout: IS_CI ? 300_000 : 120_000,
     },
   ],
 });

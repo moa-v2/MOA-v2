@@ -32,7 +32,8 @@ test.describe('서버 로그인 확인(proxy.ts)', () => {
       '/api/auth/login?provider=kakao&returnTo=%2Fmy-page%2Finfo',
     );
     const start = await page.request.get((await kakao.getAttribute('href'))!, { maxRedirects: 0 });
-    expect(start.headers().location).toMatch(/\/oauth2\/authorization\/kakao\?env=local$/);
+    // env 는 백엔드가 돌려보낼 프론트(배포 빌드면 prod, CI 는 배포 빌드로 띄움)
+    expect(start.headers().location).toMatch(/\/oauth2\/authorization\/kakao\?env=(local|prod)$/);
     expect(await cookieNames(page)).toContain('returnTo');
 
     await finishSocialLogin(page, 'code-user');
