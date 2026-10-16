@@ -31,8 +31,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
-      <body className={`${inter.variable} ${notoSansKr.variable} ${sansation.variable} font-sans`}>
+    // 글꼴 변수는 html 에 둬야 :root 에 정의된 --font-sansation 이 풀림(body 에 두면 로고 글꼴이 빠짐)
+    <html lang="ko" className={`${inter.variable} ${notoSansKr.variable} ${sansation.variable}`}>
+      <body className="font-sans">
         <Providers>
           <AuthProvider>
             <AlertProvider>

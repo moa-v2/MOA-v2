@@ -157,6 +157,6 @@ test.describe('공연 상세 서버 렌더링', () => {
 
   test('없는 공연이면 안내를 보여준다', async ({ page }) => {
     await page.goto('/shows/987654321');
-    await expect(page.getByText('존재하지 않는 공연입니다.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '존재하지 않는 공연입니다' })).toBeVisible();
   });
 });
