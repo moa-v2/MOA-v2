@@ -13,15 +13,11 @@ import {
 import { ADMIN_ROUTES } from '@/constants/route/adminRoutes';
 import { loginPath } from '@/lib/auth/session';
 
-// 네비게이션 메뉴 설정
+// 네비게이션 메뉴 설정(커뮤니티는 화면이 아직 없어 뺌)
 const NAV_ITEMS = [
   {
     label: USER_ROUTES_LABELS[USER_ROUTES.SHOW],
     href: USER_ROUTES.SHOW,
-  },
-  {
-    label: USER_ROUTES_LABELS[USER_ROUTES.COMMUNITY],
-    href: USER_ROUTES.COMMUNITY,
   },
 ];
 

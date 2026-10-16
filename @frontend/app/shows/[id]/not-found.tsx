@@ -1,7 +1,10 @@
+import { NotFoundView } from '@/components/organisms/NotFoundView';
+
 export default function ShowNotFound() {
   return (
-    <div className="text-muted-foreground container mx-auto max-w-7xl px-5 py-10 text-center sm:px-6 lg:px-8">
-      존재하지 않는 공연입니다.
-    </div>
+    <NotFoundView
+      title="존재하지 않는 공연입니다"
+      description="공연이 내려갔거나 주소가 잘못되었을 수 있습니다."
+    />
   );
 }

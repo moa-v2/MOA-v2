@@ -6,6 +6,8 @@ test.describe('백엔드에 연결할 수 없을 때', () => {
     await page.goto('/');
 
     await expect(page.getByText('데모 데이터를 보여주고 있습니다')).toBeVisible();
+    // 화면이 없는 커뮤니티는 메뉴에서 뺌
+    await expect(page.getByRole('banner').getByRole('link', { name: '커뮤니티' })).toHaveCount(0);
     await expect(page.getByText('뮤지컬 <오페라의 유령>').first()).toBeVisible();
     // 메인 배너는 판매 시작 전 공연을 카운트다운(또는 D-day)과 함께 먼저 보여줌
     await expect(page.getByText('티켓 오픈까지').first()).toBeVisible();

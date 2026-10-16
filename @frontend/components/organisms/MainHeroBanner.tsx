@@ -97,7 +97,7 @@ function HeroSlide({
   );
 }
 
-/** 메인 배너: 판매 시작 전 공연(카운트다운)을 먼저, 남는 자리는 인기 공연으로 채움 */
+/** 메인 배너: 판매 시작 전 공연(카운트다운)을 먼저, 남는 자리는 인기 공연으로 채움(판매 끝난 공연 제외) */
 export default function MainHeroBanner() {
   const [emblaRef] = useEmblaCarousel({ loop: true }, [Autoplay({ delay: 5000 })]);
   const { data, isPending } = useQuery(getShowCatalogList(POPULAR_PARAMS));
@@ -105,6 +105,7 @@ export default function MainHeroBanner() {
   const slides = useMemo(() => {
     const now = getServerNow();
     return (data?.content ?? [])
+      .filter((show) => kstToMs(show.salePeriod.endDate) > now)
       .map((show) => ({ show, openAtMs: kstToMs(show.salePeriod.startDate) }))
       .sort((a, b) => Number(b.openAtMs > now) - Number(a.openAtMs > now))
       .slice(0, SLIDE_COUNT);
