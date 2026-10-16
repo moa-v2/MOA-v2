@@ -81,7 +81,7 @@ export interface BaseTableProps<T> {
   emptyMessage?: string;
 }
 
-export function BaseTable<T extends Record<string, any>>({
+export function BaseTable<T extends object>({
   data,
   columns,
   showSearch = true,
@@ -298,7 +298,9 @@ export function BaseTable<T extends Record<string, any>>({
                 <TableRow key={index}>
                   {columns.map((column) => (
                     <TableCell key={column.key} className={cn('text-center', column.className)}>
-                      {column.render ? column.render(item) : item[column.key] || '-'}
+                      {column.render
+                        ? column.render(item)
+                        : (item as Record<string, React.ReactNode>)[column.key] || '-'}
                     </TableCell>
                   ))}
                 </TableRow>

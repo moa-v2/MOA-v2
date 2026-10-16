@@ -1,6 +1,6 @@
 'use client';
 
-import { ANONYMOUS, loadTossPayments } from '@tosspayments/tosspayments-sdk';
+import { ANONYMOUS, loadTossPayments, type TossPaymentsWidgets } from '@tosspayments/tosspayments-sdk';
 import { useEffect, useMemo, useState } from 'react';
 
 const CLIENT_KEY = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm';
@@ -23,7 +23,7 @@ export default function CheckoutPage({
   customerMobilePhone,
 }: CheckoutProps) {
   const [ready, setReady] = useState(false);
-  const [widgets, setWidgets] = useState<any>(null);
+  const [widgets, setWidgets] = useState<TossPaymentsWidgets | null>(null);
   const [amount, setAmount] = useState({
     currency: 'KRW',
     value: amountValue,
