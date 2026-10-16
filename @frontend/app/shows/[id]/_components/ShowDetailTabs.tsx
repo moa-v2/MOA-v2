@@ -8,20 +8,20 @@ interface Props {
   show: ShowCatalog.Detail;
 }
 
+function Paragraphs({ text }: { text: string }) {
+  return (
+    <div className="text-foreground text-sm leading-relaxed whitespace-pre-line">
+      {text.split(/\n\n+/).map((paragraph, i) => (
+        <p key={i} className="mb-3 last:mb-0">
+          {paragraph}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function ShowDetailTabs({ show }: Props) {
   const details = show?.detailImageUrls ?? [];
-
-  function Paragraphs({ text }: { text: string }) {
-    return (
-      <div className="text-foreground text-sm leading-relaxed whitespace-pre-line">
-        {text.split(/\n\n+/).map((paragraph, i) => (
-          <p key={i} className="mb-3 last:mb-0">
-            {paragraph}
-          </p>
-        ))}
-      </div>
-    );
-  }
 
   return (
     <Tabs defaultValue="detail" className="w-full">
