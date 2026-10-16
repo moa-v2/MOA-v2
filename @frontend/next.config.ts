@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  // next dev 가 AI 도구용 AGENTS.md 를 자동으로 만들지 않게 함
+  agentRules: false,
   // multipart 대용량 본문 (API 요청당 합계 50MB)
   experimental: {
     proxyClientMaxBodySize: '50mb',
