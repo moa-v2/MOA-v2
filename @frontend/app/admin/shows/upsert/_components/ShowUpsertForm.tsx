@@ -40,17 +40,31 @@ const DRAFT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 const DRAFT_SAVE_DELAY_MS = 1000;
 const DRAFT_IMAGE_WARNING = '첨부한 이미지는 저장되지 않습니다.';
 
-// 공연 일정 중에서 첫 번째 공연 시각(날짜+시간)을 찾는 함수
-function getFirstShowDateTime(schedules?: Show.Schedules[]) {
-  if (!schedules?.length) return null;
-
-  const dateTimes = schedules
+// 공연 일정의 공연 시각(날짜+시간) 목록
+function getShowDateTimes(schedules?: Show.Schedules[]) {
+  return (schedules ?? [])
     .filter((s) => s.showDate && dayjs(s.showDate).isValid())
     .map((s) => (s.showTime ? dayjs(`${s.showDate}T${s.showTime}`) : dayjs(s.showDate)));
+}
 
-  if (!dateTimes?.length) return null;
+// 공연 일정 중에서 첫 번째 공연 시각(날짜+시간)을 찾는 함수
+function getFirstShowDateTime(schedules?: Show.Schedules[]) {
+  const dateTimes = getShowDateTimes(schedules);
+  if (!dateTimes.length) return null;
 
   return dateTimes.reduce((earliest, current) => (current.isBefore(earliest) ? current : earliest));
+}
+
+// 예매 종료일(마지막 공연의 2시간 전)
+// 일정에서 계산하는 값이라 폼 값으로 두지 않고 저장할 때 계산(입력란이 없는 폼 값은 resetField 가 무시함)
+function getSaleEndDateTime(schedules?: Show.Schedules[]) {
+  const dateTimes = getShowDateTimes(schedules);
+  if (!dateTimes.length) return null;
+
+  const lastShowDateTime = dateTimes.reduce((latest, current) =>
+    current.isAfter(latest) ? current : latest,
+  );
+  return lastShowDateTime.subtract(2, DATE_UNIT.HOUR);
 }
 
 const requiredStringSchema = (field: string, action: ActionType) =>
@@ -112,7 +126,6 @@ const showFormSchema = z
       '출연진은 500자 이내로 입력하세요.',
     ),
     [SHOW_FORM_FIELDS.START_DATE]: dateTimeSchema('예매 시작일'),
-    [SHOW_FORM_FIELDS.END_DATE]: z.string(),
     [SHOW_FORM_FIELDS.SCHEDULES]: z.array(scheduleSchema),
   })
   .refine(
@@ -193,7 +206,6 @@ export default function ShowUpsertForm(props: Props) {
       [SHOW_FORM_FIELDS.RUNNING_TIME]: '',
       [SHOW_FORM_FIELDS.CAST]: '',
       [SHOW_FORM_FIELDS.START_DATE]: '',
-      [SHOW_FORM_FIELDS.END_DATE]: '',
       [SHOW_FORM_FIELDS.SCHEDULES]: [createEmptySchedule()],
     };
   }
@@ -207,7 +219,6 @@ export default function ShowUpsertForm(props: Props) {
     setError,
     clearErrors,
     reset,
-    resetField,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<ShowFormData>({
     resolver: zodResolver(showFormSchema),
@@ -501,28 +512,6 @@ export default function ShowUpsertForm(props: Props) {
     }
   }, [startDate, firstShowDateTimeStr, setError, clearErrors]);
 
-  // 3. 일정 공연일이 변경될 때 endDate 설정 (마지막 공연의 2시간 전)
-  // 일정에서 계산하는 값이라 바뀐 입력으로 치지 않도록 기본값도 함께 바꿈(수정 화면을 열기만 해도 이탈 경고가 뜨지 않게)
-  useEffect(() => {
-    const dateTimes = (schedules ?? [])
-      .filter((s) => s.showDate && dayjs(s.showDate).isValid())
-      .map((s) => (s.showTime ? dayjs(`${s.showDate}T${s.showTime}`) : dayjs(s.showDate)));
-
-    if (dateTimes.length === 0) {
-      resetField(SHOW_FORM_FIELDS.END_DATE, { defaultValue: '' });
-      return;
-    }
-
-    const lastShowDateTime = dateTimes.reduce((latest, current) =>
-      current.isAfter(latest) ? current : latest,
-    );
-    const endMoment = lastShowDateTime.subtract(2, DATE_UNIT.HOUR);
-
-    resetField(SHOW_FORM_FIELDS.END_DATE, {
-      defaultValue: endMoment.format(DATE_FORMAT.FULL_TIMEZONE),
-    });
-  }, [schedules, resetField]);
-
   // 메인 포스터 파일 변경 핸들러
   function handlePosterChange(files: File[]) {
     setPosterFile(files.length > 0 ? files[0] : null);
@@ -580,18 +569,9 @@ export default function ShowUpsertForm(props: Props) {
 
   // create request
   function createRequestForm(form: ShowFormData): ShowUpsert.CreateForm | ShowUpsert.UpdateForm {
-    const {
-      title,
-      genre,
-      region,
-      venueName,
-      hallName,
-      runningTime,
-      cast,
-      startDate,
-      endDate,
-      schedules,
-    } = form;
+    const { title, genre, region, venueName, hallName, runningTime, cast, startDate, schedules } =
+      form;
+    const saleEndDateTime = getSaleEndDateTime(schedules as Show.Schedules[]);
 
     return {
       title,
@@ -605,7 +585,7 @@ export default function ShowUpsertForm(props: Props) {
       cast,
       salePeriod: {
         startDate: stringToDate(startDate),
-        endDate: stringToDate(endDate),
+        endDate: saleEndDateTime?.format(DATE_FORMAT.FULL_TIMEZONE) ?? '',
       },
       schedules: schedules.map((schedule) => ({
         showDate: stringToDate(schedule.showDate),
