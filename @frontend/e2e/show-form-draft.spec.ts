@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Request } from '@playwright/test';
 
 const ADMIN = {
   name: '관리자',
@@ -96,6 +96,14 @@ async function seedDraft(page: Page, savedAt: number, values: Record<string, unk
 
 const readDraft = (page: Page) => page.evaluate((key) => localStorage.getItem(key), DRAFT_KEY);
 
+/** 공연 저장 요청(multipart)의 data 필드(JSON) */
+async function readSavedShow(request: Request) {
+  const body = await new Response(new Uint8Array(request.postDataBuffer() ?? []), {
+    headers: { 'content-type': request.headers()['content-type'] },
+  }).formData();
+  return JSON.parse(String(body.get('data')));
+}
+
 async function select(page: Page, triggerId: string, option: string) {
   await page.locator(`#${triggerId}`).click();
   await page.getByRole('option', { name: option, exact: true }).click();
@@ -192,8 +200,12 @@ test.describe('공연 등록 임시저장', () => {
     await expect(page.getByText(/^임시저장됨 \d{2}:\d{2}$/)).toBeVisible();
   });
 
-  test('등록에 성공하면 임시저장을 지운다', async ({ page }) => {
+  test('등록하면 예매 종료일까지 보내고, 성공하면 임시저장을 지운다', async ({ page }) => {
     await setUpAdmin(page);
+    const saved = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/admin/shows',
+    );
     await page.goto('/admin/shows/upsert');
     await fillBasics(page);
     await select(page, 'genre', '뮤지컬');
@@ -213,6 +225,8 @@ test.describe('공연 등록 임시저장', () => {
     await dialog(page).getByRole('button', { name: '등록' }).click();
     await expect(page).toHaveURL('/admin/shows');
     expect(await readDraft(page)).toBeNull();
+    // 마지막 공연(12/1 19:30)의 2시간 전
+    expect((await readSavedShow(await saved)).salePeriod.endDate).toBe('2026-12-01T17:30');
   });
 });
 
@@ -305,5 +319,30 @@ test.describe('공연 수정 화면', () => {
     await openEditForm(page);
     await sidebarLink(page, '공연 관리').click();
     await expect(page).toHaveURL('/admin/shows');
+  });
+
+  test('저장하면 바꾼 값과 예매 종료일(마지막 공연 2시간 전)을 보낸다', async ({ page }) => {
+    await openEditForm(page);
+    await page.route(
+      (url) => url.pathname === `/api/v1/admin/shows/${EDIT_SHOW.id}`,
+      (route) =>
+        route.request().method() === 'PATCH'
+          ? route.fulfill({ json: ok({ showId: EDIT_SHOW.id }) })
+          : route.fallback(),
+    );
+    const saved = page.waitForRequest(
+      (request) =>
+        request.method() === 'PATCH' &&
+        new URL(request.url()).pathname === `/api/v1/admin/shows/${EDIT_SHOW.id}`,
+    );
+
+    await page.locator('#title').fill('수정한 공연');
+    await page.getByRole('button', { name: '수정', exact: true }).click();
+    await dialog(page).getByRole('button', { name: '수정' }).click();
+    await expect(page).toHaveURL('/admin/shows');
+
+    const show = await readSavedShow(await saved);
+    expect(show.title).toBe('수정한 공연');
+    expect(show.salePeriod).toEqual({ startDate: '2026-11-10T10:00', endDate: '2026-12-01T17:30' });
   });
 });
